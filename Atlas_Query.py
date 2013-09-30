@@ -61,7 +61,7 @@ def get_type(t):
 	if t == 'ping':
 		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None}]}
 		return ping
-	elif t == 'traceroute': #Not tested
+	elif t == 'traceroute': #Tested and working see public measurements for "Traceroute4" and "Traceroute6"
 		trace = {"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
 		return trace
 	elif t == 'dns':
