@@ -61,7 +61,7 @@ def get_type(t):
 	if t == 'ping':
 		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None}]}
 		return ping
-	elif t == 'traceroute': #Tested and working see public measurements for "Traceroute4" and "Traceroute6"
+	elif t == 'traceroute':
 		trace = {"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
 		return trace
 	elif t == 'dns':
@@ -72,7 +72,7 @@ def get_probes(skeleton,probeNum):
 	skeleton['probes'] = []
 	x = 1
 	for x in range(probeNum):
-		skeleton['probes'].append({"requested":None,"type":None,"value":None}) #<- for x in the number of different probe measurements
+		skeleton['probes'].append({"requested":None,"type":None,"value":None})
 	return skeleton
 
 def send_Query(request,Query):
@@ -83,9 +83,8 @@ def send_Query(request,Query):
 		measurement = int(results["measurements"][0])
 		print "Measurement ",(measurement)
 		return measurement
-
-	except Exception,e:
-		print 'No dice: ',e
+	except HTTPError, e: 	# <- code source: Willem Troop
+		print e.read()
 
 def write_Measurement(measurement):
 	f = open('AQR.txt','a')
@@ -152,4 +151,3 @@ if __name__ == "__main__":
 	skeleton = get_probes(skeleton)
 	Query = main_Query_Builder(opts,skeleton)
 	measurement = send_Query(req,Query)
-	#~ write_Measurement(measurement)
