@@ -83,7 +83,7 @@ def send_Query(request,Query):
 		measurement = int(results["measurements"][0])
 		print "Measurement ",(measurement)
 		return measurement
-	except HTTPError, e: 	# <- code source: Willem Troop
+	except HTTPError, e: 	# <- code source: Willem Toorop
 		print e.read()
 
 def write_Measurement(measurement):
