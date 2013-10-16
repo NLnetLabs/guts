@@ -59,7 +59,7 @@ def get_Time():
 
 def get_type(t):
 	if t == 'ping':
-		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None}]}
+		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None,"is_public":None}]}
 		return ping
 	elif t == 'traceroute':
 		trace = {"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
@@ -78,7 +78,7 @@ def get_probes(skeleton,probeNum):
 def send_Query(request,Query):
 	try:
 		conn = urllib2.urlopen(request, json.dumps(Query))
-		time.sleep(5)
+		time.sleep(5) # Waiting time
 		results = json.load(conn)
 		measurement = int(results["measurements"][0])
 		print "Measurement ",(measurement)
