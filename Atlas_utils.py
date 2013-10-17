@@ -29,7 +29,7 @@ def baseline_ping_all():
 		req = Atlas_Query.get_Req(key)
 		skeleton = Atlas_Query.get_type('ping')
 		skeleton = Atlas_Query.get_probes(skeleton, 1)
-		defs = {"target" : '2001:7b8:40:1:16:aff:fe8f:223',"packets":1, "size" : 1500, "is_public":True, "is_oneoff":True, "type" : 'ping',"description" : "bulk ping","af" : 6}
+		defs = {"target" : '213.136.31.100',"packets":1, "size" : 1500, "is_public":True, "is_oneoff":True, "type" : 'ping',"description" : "bulk ping","af" : 4}
 		que_probs = [{"requested": len(chunk), "type": "probes", "value":all_probes}]
 		q = [defs,que_probs]
 		Query = Atlas_Query.ext_Query_Builder(skeleton, q)
