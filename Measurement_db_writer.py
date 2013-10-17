@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#Author Warwick Louw
 
 import os
 import sys
@@ -223,6 +224,7 @@ def ret_max_res_id():
 	else:
 		return row[0]
 
+## ~Depreciated~ 
 ## Inserts data into the database.
 def insert_into_db(tbl,tbl_schem):
 	#1: remove all None values
@@ -242,20 +244,17 @@ def insert_into_db(tbl,tbl_schem):
 def insert_tuples_in_db(inserts):
 	## to include: split executes larger than 10000
 	for insert in inserts:
-		##
-		keys = ""
-		vals = ""
+		## Declarations
 		tbl = insert[0]
 		que = insert[1]
 		##
 		que = sanitize_dict(que)
 		if len(que) >= 1:
 			for k,v in que.iteritems():
-				keys += "'"+(k)+"',"
-				vals += "'"+str(v)+"',"
-			keys = keys[:-1]
-			vals = vals[:-1]
-			cursor.execute("insert into "+tbl+"("+(keys)+") values("+vals+")")
+				keys = ", ".join(que.keys())
+				vals = ", ".join('?' * len(que))
+				query = "insert into "+tbl+"({}) values({})".format(keys,vals)
+				cursor.execute(query,que.values())
 
 ## Return the results of a specific measurement
 def get_measurements_web(measurement):
@@ -345,3 +344,4 @@ if __name__ == "__main__":
 
 ## set Vim tabs for viewing
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
+
