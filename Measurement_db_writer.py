@@ -249,12 +249,15 @@ def insert_tuples_in_db(inserts):
 		que = insert[1]
 		##
 		que = sanitize_dict(que)
+		#print que.values()
 		if len(que) >= 1:
-			for k,v in que.iteritems():
-				keys = ", ".join(que.keys())
-				vals = ", ".join('?' * len(que))
-				query = "insert into "+tbl+"({}) values({})".format(keys,vals)
-				cursor.execute(query,que.values())
+			#for k,v in que.iteritems():
+			keys = ", ".join(que.keys())
+			vals = ", ".join('?' * len(que))
+			#print que.values()
+			query = "insert into "+tbl+"({}) values({})".format(keys,vals)
+			#print que.values()
+			cursor.execute(query,que.values())
 
 ## Return the results of a specific measurement
 def get_measurements_web(measurement):
@@ -334,10 +337,11 @@ if __name__ == "__main__":
 			insert_list.append(ins)
 	else:
 		print "The database is up to date according to the measurements file"
-	print len(insert_list)
+	#print len(insert_list)
 	for x in range(len(insert_list)):
-		print len(insert_list[x])
-		insert_tuples_in_db(insert_list[x])
+		if type(insert_list[x]) is not type(None):
+			print len(insert_list[x])
+			insert_tuples_in_db(insert_list[x])
 	conn.commit()
 	print "Fin"
 	conn.close()
