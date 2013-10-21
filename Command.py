@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+#Author Warwick Louw
+
 #|===========================================
 #|Notes:
 #|	Still to come (for now):
@@ -51,22 +54,25 @@ def write_Measurement(measurement,t):
 	f.writelines(strr)
 	f.close()
 
-if __name__ == "__main__":                                      
+if __name__ == "__main__":               
 	tests = [ 'ping4', 'ping6', 'dns4', 'dns6', 'traceroute4', 'traceroute6' ]
 	probeNum = randint( 1, 3 ) #Random number of probe groups
 	for test in tests:
 		key = Atlas_Query.get_Key()
-		req = Atlas_Query.get_Req( key )
-		skeleton = Atlas_Query.get_type( test[:-1] )
-		skeleton = Atlas_Query.get_probes( skeleton, probeNum )
-		defs = ret_defs( test )
-		probes = ret_probes( probeNum )
-		q = [ defs , probes ]
-		Query = Atlas_Query.ext_Query_Builder( skeleton, q )
-		try:
-			measurement = Atlas_Query.send_Query( req, Query )
-			if len( str(measurement) ) != None:
-				write_Measurement(measurement,test)
-				print measurement
-		except:
-			pass
+		req = Atlas_Query.get_Req(key)
+		skeleton = Atlas_Query.get_type(test[:-1])
+		skeleton = Atlas_Query.get_probes(skeleton, probeNum)
+		defs = ret_defs(test)
+		probes = ret_probes(probeNum)
+		q = [defs , probes]
+		Query = Atlas_Query.ext_Query_Builder(skeleton, q)
+		#try:
+			#measurement = Atlas_Query.send_Query(req, Query)
+			#if len(str(measurement)) != None:
+				#write_Measurement(measurement,test)
+				#print measurement
+		#except:
+			#pass
+
+## set Vim tabs for viewing
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

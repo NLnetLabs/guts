@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #Author Warwick Louw
 
-## Marked for removal
-#import urllib
-#import optparse
 ## Imports
 import sys
 import time
@@ -44,18 +41,44 @@ def main_Query_Builder(opts,skel):
 				if(y[5:] in x) and opts[y] != None:
 					skel['probes'][0][y[5:]] = opts[y]
 	return skel
-	
+
+## Query builder for external scripts, a skeleton(list of dicts) is parsed as well as the query(list of dicts)
+## This method will match the keys with the corresponding values, query -> skeleton. to flesh out the skeleton
 def ext_Query_Builder(skeleton,q):
-	for x in skeleton['definitions'][0]:
-		for y in q[0]:
-			if y == x:
-				skeleton['definitions'][0][x] = q[0][y]
-	for z in range(len(q[1])):
-		## way to add multiple probes: for each probe in probe list -> dict of probe -> value if key = key
-		for x1,y1 in q[1][z].iteritems():
-			for x2,y2 in skeleton['probes'][z].iteritems():
-				if (x1 == x2):
-					skeleton['probes'][z][x2] = q[1][z][x1]
+	defs 	= q[0]
+	probes 	= q[1]
+
+	## Definitions:
+
+	## Old code:
+	#for x in skeleton['definitions'][0]:
+		#for y in q[0]:
+			#if y == x:
+				#skeleton['definitions'][0][x] = q[0][y]
+	
+	## New code:
+	## Advantages: Easier to read, more descriptive and faster.
+	for definition in range(len(skeleton['definitions'])):
+		for k,v in skeleton['definitions'][definition].iteritems():
+			val = defs.get(k,None)
+			if val or val == 0:
+				skeleton['definitions'][definition][k] = val
+	## Probes:
+	
+	## Old code:
+	#for z in range(len(q[1])):
+		#for k,v in skeleton['probes'][z].iteritems():
+			#for x1,y1 in q[1][z].iteritems():
+				#for x2,y2 in skeleton['probes'][z].iteritems():
+					#if (x1 == x2):
+						#skeleton['probes'][z][x2] = q[1][z][x1]
+	## New  code :
+	## Advantages: Easier to read, more descriptive, shorter and faster.
+	for probe in range(len(probes)):
+		for k,v in skeleton['probes'][probe].iteritems():
+			val = probes[probe].get(k,None)
+			if val:
+				skeleton['probes'][probe][k] = val
 	return skeleton
 
 def get_Time():
@@ -98,3 +121,5 @@ def write_Measurement(measurement,t):
 	f.writelines(strr)
 	f.close()
 
+## set Vim tabs for viewing
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
