@@ -2,6 +2,7 @@
 #Author Warwick Louw
 
 ## Imports
+import os
 import sys
 import time
 import json
@@ -15,10 +16,15 @@ from datetime import date
 ##
 
 def get_Key():
-	f = open('/home/'+getpass.getuser()+'/Sec/AtlasKey','r')
+	directory = '/home/'+getpass.getuser()+'/Sec/AtlasKey'
+	f = open(directory,'r')
+	if not f:
+		print "Aborting. reason: Atlas Key file "+directory+" could not be found."
+		print "please specify the directory"
+		sys.exit(0)
 	key = f.readline()
 	if not (len(key) > 35):
-		print 'Aborting. reason: Key could not be found'
+		print 'Aborting. reason: Key could not be found in file'
 		sys.exit(0)
 	return key
 
@@ -45,35 +51,17 @@ def main_Query_Builder(opts,skel):
 ## Query builder for external scripts, a skeleton(list of dicts) is parsed as well as the query(list of dicts)
 ## This method will match the keys with the corresponding values, query -> skeleton. to flesh out the skeleton
 def ext_Query_Builder(skeleton,q):
+	## Declarations
 	defs 	= q[0]
 	probes 	= q[1]
-
+	##
 	## Definitions:
-
-	## Old code:
-	#for x in skeleton['definitions'][0]:
-		#for y in q[0]:
-			#if y == x:
-				#skeleton['definitions'][0][x] = q[0][y]
-	
-	## New code:
-	## Advantages: Easier to read, more descriptive and faster.
 	for definition in range(len(skeleton['definitions'])):
 		for k,v in skeleton['definitions'][definition].iteritems():
 			val = defs.get(k,None)
 			if val or val == 0:
 				skeleton['definitions'][definition][k] = val
 	## Probes:
-	
-	## Old code:
-	#for z in range(len(q[1])):
-		#for k,v in skeleton['probes'][z].iteritems():
-			#for x1,y1 in q[1][z].iteritems():
-				#for x2,y2 in skeleton['probes'][z].iteritems():
-					#if (x1 == x2):
-						#skeleton['probes'][z][x2] = q[1][z][x1]
-	## New  code :
-	## Advantages: Easier to read, more descriptive, shorter and faster.
 	for probe in range(len(probes)):
 		for k,v in skeleton['probes'][probe].iteritems():
 			val = probes[probe].get(k,None)

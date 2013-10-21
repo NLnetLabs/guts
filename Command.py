@@ -4,7 +4,6 @@
 #|===========================================
 #|Notes:
 #|	Still to come (for now):
-#|		*randomise the targets(get a spread)
 #|		*include measurement_reader
 #|		*scheduler
 #|		*some form of web display

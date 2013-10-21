@@ -7,53 +7,41 @@ import json
 import time
 import copy
 import urllib
+import pprint
 import urllib2
 import sqlite3
 import datetime
+import Database
 from datetime import date
 import db_creator
 
-conn = sqlite3.connect('Measurements.db')
-cursor = conn.cursor()
-## Check whether the database exists, if it doesn't create it
-## If it does, connect to it.
-def db_conn():
-	db_filename = 'Measurements.db'
-	db_is_new = not os.path.exists(db_filename)
-	conn = sqlite3.connect(db_filename)
-	cursor = conn.cursor()
-	if db_is_new:
-		db_creator.create_db()
-	return conn
+## sort auxiliary files from callable files
+
+## return a connection to the database
+def ret_con():
+	con = Database.ret_con()
+	return con
 
 ## Anon func to determine whether a key is in a dict.
 ## Lengthly name to ensure it does not clash.
 exists_in_dict = lambda x,d: True if x in d else False
 
 ## Place the data from the web into the database
-def db_place(lines,tbls):
+def proc_result(results):#change to results
 	try:
 		inserts = []
-		tbl_mes = get_tbl_schema(tbls[0])
-		if (type(lines) == list) and (len(lines) != 0):
-			## Add to measurements table since the data is generic for all measurment types
-			for k,v in tbl_mes.iteritems():
-				val = lines[0].get(k[4:],None)
-				if val or val == 0:
-					tbl_mes[k] = val
-			tbl_mes['mes_msm_date'] = str(ret_timestamp_to_dt(lines[0]['timestamp']))
-			inserts.append((tbls[0],tbl_mes))
+		if (type(results) == list) and (len(results) != 0):
 			## Remove the measurements table from the list of tables since it has been dealt with.
-			tbls = tbls[1:]
-			for line in lines:
+			tbls = ['tbl_Measurements', 'tbl_results', 'tbl_result_set', 'tbl_traceroute_mpls']
+			for result in results:
 				res_id = ret_max_res_id() + 1
 				err_id = get_last_err_id() + 1
 				## Handle each type seperately
-				if line['type'] == 'dns':
+				if result['type'] == 'dns':
 					proc_dns(line,tbls,res_id,err_id,inserts)
-				elif line['type'] == 'ping':
+				elif result['type'] == 'ping':
 					proc_ping(line,tbls,res_id,err_id,inserts)
-				elif line['type'] == 'traceroute':
+				elif result['type'] == 'traceroute':
 					proc_trace(line,tbls,res_id,err_id,inserts)
 				else:
 					print ('The type of measurement is either not supported or it is unidentifiable')
@@ -224,7 +212,7 @@ def ret_max_res_id():
 	else:
 		return row[0]
 
-## ~Depreciated~ 
+## ~Depreciated~ #delete this
 ## Inserts data into the database.
 def insert_into_db(tbl,tbl_schem):
 	#1: remove all None values
@@ -240,23 +228,24 @@ def insert_into_db(tbl,tbl_schem):
 	keys = keys[:-1]
 	vals = vals[:-1]
 	cursor.execute("insert into "+tbl+"("+(keys)+") values("+vals+")")
-	
-def insert_tuples_in_db(inserts):
-	## to include: split executes larger than 10000
+
+## Inserts data into the database, a tuple(table name, values) is parsed
+def insert_tuple_in_db(inserts):
+	if type(inserts) != type(tuple):
+		print "Inserts should be in the form of a tuple. tuple : (table name, values)"
+		print 'example: ("tbl_Measurements",(111111,"date","127.0.0.1",4,"ICMP","Ping"))'
+		return
+	## to include: split executes larger than 30 000
 	for insert in inserts:
 		## Declarations
 		tbl = insert[0]
 		que = insert[1]
 		##
 		que = sanitize_dict(que)
-		#print que.values()
 		if len(que) >= 1:
-			#for k,v in que.iteritems():
 			keys = ", ".join(que.keys())
 			vals = ", ".join('?' * len(que))
-			#print que.values()
 			query = "insert into "+tbl+"({}) values({})".format(keys,vals)
-			#print que.values()
 			cursor.execute(query,que.values())
 
 ## Return the results of a specific measurement
@@ -296,6 +285,16 @@ def view_tbl(tbl):
 	row = cursor.execute("Select * from "+tbl)
 	return row.fetchall()
 
+## Gather Measurements info
+def get_measurement_info(measurement):
+	try:
+		response = urllib2.urlopen("https://atlas.ripe.net/api/v1/measurement/"+str(measurement)).read()
+		response = json.loads(response)
+		return response
+	except urllib2.HTTPError, e: ## <- Idea from Willem Toorop
+		print (e.read())
+		return None
+
 ## Return a dict(column name:None)
 def get_tbl_schema(tbl):
 	d = {}
@@ -313,6 +312,56 @@ def check_if_updated(measurements,mes_ids):
 		if fi_mes[i] not in mes_ids : to_add.append(fi_mes[i])
 	return to_add
 
+## View measurement info
+def view_measurement_info(measurement):
+	response = measurement_info(measurement)
+	if response != None:
+		## For now, this will do.
+		for k,v in response.iteritems():
+			print k,":",v
+
+## Add measurements info to insert list. return tuple for tuple insert.
+def insert_measurement_info(mes_info):
+	tbl_Measurements = get_tbl_schema("tbl_Measurements")
+	for k,v in tbl_Measurements.iteritems():
+		val = mes_info.get(k[:4],None)
+		if val:
+			tbl_Measurements[k] = val
+	return ("tbl_Measurements",tbl_Measurements)
+
+## Method to insert measurements from file to database to inserts list
+def insert_measurements_from_file(measurements):
+	insert = []
+	return insert
+
+## Method to add single measurement to database and returns success
+def add_single_measurement_to_db(measurement,insert=1):
+	if len(str(measurement)) > 0:
+		mes_info = measurement_info(measurement)
+		if "Stopped" in mes_info['status'].values():
+			## call all inserts
+			con = ret_con()
+			cursor = con.cursor()
+			inserts = []
+			## Deal with measurements info
+			mes_info = get_measurement_info(measurement)
+			inserts.append(("tbl_Measurements",insert_measurement_info(mes_info)))
+			## Deal with results
+			results = get_measurements_web(measurement)
+			inserts.append(db_place(results))
+			## Then insert the info
+			## Adding an optional parameter "insert" means this method can be used by other methods to insert singles
+			if insert:
+				for insert in inserts:
+					insert_tuple_in_db(inserts)
+			else:
+				return inserts
+			return True
+		else:
+			print "This measurement has not yet stopped, please try again later"
+			print "May I recommend viewing the measurements info or adding the insert to  the schedule"
+			return False
+
 ## Return all the measurement ids
 def get_all_measurement_ids():
 	ids = []
@@ -322,27 +371,29 @@ def get_all_measurement_ids():
 		ids.append(i[0])
 	return ids
 
-if __name__ == "__main__":
-	db_conn()
-	fi = 'Measurements.txt'
-	tbls = ['tbl_Measurements', 'tbl_results', 'tbl_result_set', 'tbl_traceroute_mpls']
-	mes_ids = get_all_measurement_ids()
-	insert_list = []
-	measurements = get_measurements_file(fi)
-	to_add = check_if_updated(measurements,mes_ids)
-	if to_add != None or len(to_add) != 0:
-		for measurement in to_add:
-			req = get_measurements_web(measurement)
-			ins = db_place(req,tbls)
-			insert_list.append(ins)
-	else:
-		print "The database is up to date according to the measurements file"
-	#print len(insert_list)
-	for x in range(len(insert_list)):
-		if type(insert_list[x]) is not type(None):
-			print len(insert_list[x])
-			insert_tuples_in_db(insert_list[x])
-	conn.commit()
+if __name__ == "__main__":	
+	#db_conn()
+	#fi = 'Measurements.txt'
+	#tbls = ['tbl_Measurements', 'tbl_results', 'tbl_result_set', 'tbl_traceroute_mpls']
+	#mes_ids = get_all_measurement_ids()
+	#insert_list = []
+	#measurements = get_measurements_file(fi)
+	#to_add = check_if_updated(measurements,mes_ids)
+	#if to_add != None or len(to_add) != 0:
+		#for measurement in to_add:
+			#mes_info = measurement_info(measurement)
+			#if "Stopped" in mes_info['status'].values():
+				#req = get_measurements_web(measurement)
+				#ins = db_place(req,tbls)
+				#insert_list.append(ins)
+			#else:
+				#print 'Measurement "'+str(measurement)+'" has not stopped, please try again later.'
+	#else:
+		#print "The database is up to date according to the measurements file"
+	#for x in range(len(insert_list)):
+		#if type(insert_list[x]) is not type(None):
+			#insert_tuples_in_db(insert_list[x])
+	#conn.commit()
 	print "Fin"
 	conn.close()
 
