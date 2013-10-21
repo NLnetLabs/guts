@@ -16,6 +16,7 @@ from datetime import date
 ##
 
 def get_Key():
+	## to add: Some kind of global config file
 	directory = '/home/'+getpass.getuser()+'/Sec/AtlasKey'
 	f = open(directory,'r')
 	if not f:

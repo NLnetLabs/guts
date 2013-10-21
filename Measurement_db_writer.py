@@ -21,6 +21,9 @@ import db_creator
 ## These methds are used to complete tasks for members such as return rows, ids, processing etc..
 ## These are then seperated: Database specific, Measurement specific, processing and other
 
+## Caller methods:
+## These methds are what should be called by the user or script
+
 ## ---------------------------------------------------------------------------------------------------------
 ## Database specific auxiliary methods.
 ## ---------------------------------------------------------------------------------------------------------
@@ -73,33 +76,12 @@ def ret_max_res_id():
 	else:
 		return row[0]
 
-## ~Deprecated~ deleted in next commit
-## Return the last icmpext id so that we can assign the next one
-def get_last_icmpext_id():
-	cursor.execute("Select max(set_icmpext_mpls_id) from tbl_result_set")
-	row = cursor.fetchone()
-	if row[0] is None:
-		return 0
-	else:
-		return row[0]
-
-## ~Deprecated~ deleted in next commit
-## Return the last icmpext mpls id so that we can assign the next one
-def get_last_icmpext_mpls_id():
-	cursor.execute("Select max(mpl_icmptext_mpls_id) from tbl_traceroute_mpls")
-	row = cursor.fetchone()
-	if row[0] is None:
-		return 0
-	else:
-		return row[0]
-
 ## view all items on the specified table
 def view_tbl(tbl):
 	cursor = Database.ret_con.cursor()## returns a connection which we can then assign a cursor to.
 	rows = cursor.execute("Select * from "+tbl)
 	for row in rows:## to add: include column names and tab everything into place to imporve readability
 		print row
-	#return row.fetchall() ## ~Deprecated~ deleted in next commit
 
 ## Inserts data into the database, a tuple(table name, values) is parsed
 def insert_tuple_in_db(inserts):
@@ -120,7 +102,7 @@ def insert_tuple_in_db(inserts):
 			query = "insert into "+tbl+"({}) values({})".format(keys,vals)
 			cursor.execute(query,que.values())
 
-## Return the table schema as a dict(column name:None)
+## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}
 	for r in cursor.execute("PRAGMA table_info("+tbl+");"):
@@ -141,7 +123,8 @@ def get_measurements_file(fileName):
 			return mes
 	else:
 		print ("Could not find the measurements file: "+str(filename)+" or the file is empty")
-		sys.exit(0)
+		return None
+		#sys.exit(0)## ~Deprecated~ deleted in next commit
 
 ## Add measurements info to insert list. return tuple for tuple insert.
 def insert_measurement_info(mes_info):
@@ -191,7 +174,7 @@ def get_measurement_info(measurement):
 ## Processing for storage.
 ## ---------------------------------------------------------------------------------------------------------
 ## Place the data from the web into the database
-def proc_result(results):#change to results
+def proc_result(results):
 	try:
 		inserts = []
 		if (type(results) == list) and (len(results) != 0):
@@ -336,9 +319,15 @@ def proc_trace(line,tbls,res_id,err_id,inserts): ## Tested, ugly but it works
 
 ## Anon func to determine whether a key is in a dict.
 ## Lengthly name to ensure it does not clash.
-exists_in_dict = lambda x,d: True if x in d else False
+## ~Deprecated~ delete after next commit
+#exists_in_dict = lambda x,d: True if x in d else False
 
-## Return whether the database is up to date or not
+## function to return whether a key exists within the dict
+def exist_in_dict(x,d):
+	return x in d
+
+## Returns mesurement ids of measurements which do not exist in the database
+## Useful to determine which of a set of ids need to be added
 def check_if_updated(measurements,mes_ids):
 	fi_mes = []
 	to_add = []
