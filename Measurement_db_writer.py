@@ -124,7 +124,6 @@ def get_measurements_file(fileName):
 	else:
 		print ("Could not find the measurements file: "+str(filename)+" or the file is empty")
 		return None
-		#sys.exit(0)## ~Deprecated~ deleted in next commit
 
 ## Add measurements info to insert list. return tuple for tuple insert.
 def insert_measurement_info(mes_info):
@@ -316,11 +315,6 @@ def proc_trace(line,tbls,res_id,err_id,inserts): ## Tested, ugly but it works
 ## ---------------------------------------------------------------------------------------------------------
 ## Other:
 ## ---------------------------------------------------------------------------------------------------------
-
-## Anon func to determine whether a key is in a dict.
-## Lengthly name to ensure it does not clash.
-## ~Deprecated~ delete after next commit
-#exists_in_dict = lambda x,d: True if x in d else False
 
 ## function to return whether a key exists within the dict
 def exist_in_dict(x,d):

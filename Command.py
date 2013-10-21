@@ -54,7 +54,8 @@ def write_Measurement(measurement,t):
 	f.close()
 
 if __name__ == "__main__":               
-	tests = [ 'ping4', 'ping6', 'dns4', 'dns6', 'traceroute4', 'traceroute6' ]
+	#tests = [ 'ping4', 'ping6', 'dns4', 'dns6', 'traceroute4', 'traceroute6' ]
+	tests = ['ping4']
 	probeNum = randint( 1, 3 ) #Random number of probe groups
 	for test in tests:
 		key = Atlas_Query.get_Key()
@@ -65,13 +66,15 @@ if __name__ == "__main__":
 		probes = ret_probes(probeNum)
 		q = [defs , probes]
 		Query = Atlas_Query.ext_Query_Builder(skeleton, q)
-		#try:
-			#measurement = Atlas_Query.send_Query(req, Query)
-			#if len(str(measurement)) != None:
-				#write_Measurement(measurement,test)
-				#print measurement
-		#except:
-			#pass
+		print Query
+		try:
+			measurement = Atlas_Query.send_Query(req, Query)
+			if len(str(measurement)) != None:
+				write_Measurement(measurement,test)
+				print measurement
+		except:
+			print "There was an error"
+			pass
 
 ## set Vim tabs for viewing
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

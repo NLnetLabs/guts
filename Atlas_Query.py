@@ -36,6 +36,7 @@ def get_Req(key):
 	request.add_header("Accept", "application/json")
 	return request
 
+## ~Deprecated~ considering removal
 def main_Query_Builder(opts,skel):
 	for x in skel['definitions']:
 		for y in opts:
@@ -57,12 +58,19 @@ def ext_Query_Builder(skeleton,q):
 	probes 	= q[1]
 	##
 	## Definitions:
-	for definition in range(len(skeleton['definitions'])):
-		for k,v in skeleton['definitions'][definition].iteritems():
-			val = defs.get(k,None)
-			if val or val == 0:
-				skeleton['definitions'][definition][k] = val
+	## ~Deprecated~ in one fell swoop, removal after next commit
+	#for definition in range(len(skeleton['definitions'])):
+		#for k,v in skeleton['definitions'][definition].iteritems():
+			#val = defs.get(k,None)
+			#if val or val == 0:
+				#skeleton['definitions'][definition][k] = val
+	## Code sauce: Willem Toorop
+	for definition in skeleton['definitions']:
+		definition.update(dict([(k, defs.get(k, None)) for k, v in definition.items() if k in defs]))
+
 	## Probes:
+	#for probe in probes:
+		#probe.update(dict([(k, probes.get(k, None)) for k, v in probe.items() if k in probes]))
 	for probe in range(len(probes)):
 		for k,v in skeleton['probes'][probe].iteritems():
 			val = probes[probe].get(k,None)
@@ -75,7 +83,7 @@ def get_Time():
 	start_time = time.time()
 	stop_time = time.time() + 300
 
-def get_type(t):
+def get_type(t):## to add: default values for measurement type, these can change based on the input
 	if t == 'ping':
 		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None,"is_public":None}]}
 		return ping
@@ -85,6 +93,8 @@ def get_type(t):
 	elif t == 'dns':
 		dns = {"definitions": [{ "target": None, "query_argument": None, "query_class": None, "query_type": None, "description": None, "type": None, "af": None, "is_oneoff": None}] }
 		return dns
+	else:
+		return None
 
 def get_probes(skeleton,probeNum):
 	skeleton['probes'] = []
@@ -96,7 +106,16 @@ def get_probes(skeleton,probeNum):
 def send_Query(request,Query):
 	try:
 		conn = urllib2.urlopen(request, json.dumps(Query))
-		time.sleep(5) ## Waiting time
+		 ## If no waiting time is given, queries might fail in succession of one another.
+		 ## Learned the hard way...
+		 ## Now for a very loose quote:
+		 ## "First thou lobbest the query.Then thou must count to three.
+		 ## Three shall be the number of the counting and the number of the counting shall be three.
+		 ## Four shalt thou not count, neither shalt thou count two, excepting that thou then proceedeth to three.
+		 ## Five is right out. Once the number three, being the number of the counting, be reached, then lobbest
+		 ## thou the query in the direction of thine target, who, being naughty in my sight, shall snuff it."
+		 ## -- Monty Python, "Monty Python and the Holy Grail"
+		time.sleep(3)
 		results = json.load(conn)
 		measurement = int(results["measurements"][0])
 		print "Measurement ",(measurement)
@@ -104,6 +123,7 @@ def send_Query(request,Query):
 	except HTTPError, e: # <- code source: Willem Toorop
 		print e.read()
 
+## Considering moving to utilies to have a global filewriter
 def write_Measurement(measurement,t):
 	f = open('Measurements.txt','a')
 	strr = str(date.today())+'|'+str(datetime.datetime.now().time())[:-7] + '|' + t + '|' +  str( measurement ) + "\n"
