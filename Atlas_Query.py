@@ -36,20 +36,6 @@ def get_Req(key):
 	request.add_header("Accept", "application/json")
 	return request
 
-## ~Deprecated~ considering removal
-def main_Query_Builder(opts,skel):
-	for x in skel['definitions']:
-		for y in opts:
-			if (y[:4] == "def_") or (y[:3] == opts['def_type'][:3]):
-				if(y[4:] in x) and opts[y] != None:
-					skel['definitions'][0][y[4:]] = opts[y]
-	for x in skel['probes']:
-		for y in opts:
-			if(y[:5] == "prob_"):
-				if(y[5:] in x) and opts[y] != None:
-					skel['probes'][0][y[5:]] = opts[y]
-	return skel
-
 ## Query builder for external scripts, a skeleton(list of dicts) is parsed as well as the query(list of dicts)
 ## This method will match the keys with the corresponding values, query -> skeleton. to flesh out the skeleton
 def ext_Query_Builder(skeleton,q):
@@ -58,16 +44,9 @@ def ext_Query_Builder(skeleton,q):
 	probes 	= q[1]
 	##
 	## Definitions:
-	## ~Deprecated~ in one fell swoop, removal after next commit
-	#for definition in range(len(skeleton['definitions'])):
-		#for k,v in skeleton['definitions'][definition].iteritems():
-			#val = defs.get(k,None)
-			#if val or val == 0:
-				#skeleton['definitions'][definition][k] = val
 	## Code sauce: Willem Toorop
 	for definition in skeleton['definitions']:
 		definition.update(dict([(k, defs.get(k, None)) for k, v in definition.items() if k in defs]))
-
 	## Probes:
 	#for probe in probes:
 		#probe.update(dict([(k, probes.get(k, None)) for k, v in probe.items() if k in probes]))
@@ -105,7 +84,7 @@ def get_probes(skeleton,probeNum):
 
 def send_Query(request,Query):
 	try:
-		conn = urllib2.urlopen(request, json.dumps(Query))
+		conn = urllib2.urlopen(request, json.dumps(Query))## conn missleading name, might be confused with a db connection
 		 ## If no waiting time is given, queries might fail in succession of one another.
 		 ## Learned the hard way...
 		 ## Now for a very loose quote:
@@ -120,7 +99,8 @@ def send_Query(request,Query):
 		measurement = int(results["measurements"][0])
 		print "Measurement ",(measurement)
 		return measurement
-	except HTTPError, e: # <- code source: Willem Toorop
+	 ## code sauce: Willem Toorop
+	except HTTPError, e:
 		print e.read()
 
 ## Considering moving to utilies to have a global filewriter
