@@ -70,7 +70,7 @@ def get_type(t):## to add: default values for measurement type, these can change
 		trace = {"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
 		return trace
 	elif t == 'dns':
-		dns = {"definitions": [{ "target": None, "query_argument": None, "query_class": None, "query_type": None, "description": None, "type": None, "af": None, "is_oneoff": None}] }
+		dns = {"definitions": [{"target": None, "query_argument": None, "query_class": None, "query_type": None, "description": None, "type": None, "af": None, "is_oneoff": None,"use_probe_resolver": False,"recursion_desired": False,'udp_payload_size':False}] }
 		return dns
 	else:
 		return None
@@ -94,14 +94,16 @@ def send_Query(request,Query):
 		 ## Five is right out. Once the number three, being the number of the counting, be reached, then lobbest
 		 ## thou the query in the direction of thine target, who, being naughty in my sight, shall snuff it."
 		 ## -- Monty Python, "Monty Python and the Holy Grail"
+		print "Waiting..."
 		time.sleep(3)
 		results = json.load(conn)
 		measurement = int(results["measurements"][0])
-		print "Measurement ",(measurement)
+		#print "Measurement ",(measurement)
 		return measurement
 	 ## code sauce: Willem Toorop
 	except HTTPError, e:
 		print e.read()
+		return None
 
 ## Considering moving to utilies to have a global filewriter
 def write_Measurement(measurement,t):
