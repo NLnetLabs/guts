@@ -12,10 +12,10 @@ from urllib2 import Request
 ## Return the id of all connected ipv6 probes
 def probes_ipv6():
 	probes = []
-	req = urllib2.urlopen("https://atlas.ripe.net/api/v1/probe/?prefix_v6=::/0&limit=0").read()
-	req = json.loads(req)
+	response = urllib2.urlopen("https://atlas.ripe.net/api/v1/probe/?prefix_v6=::/0&limit=0").read()
+	response = json.loads(response)
 	## AWW YISS!! list comprehension xD
-	probes = [probe['id'] for probe in [probes for probes in req['objects'] if probes['status'] == 1]]
+	probes = [probe['id'] for probe in [probes for probes in response['objects'] if probes['status'] == 1]]
 	return probes
 
 ## Chunk a list into smaller chunks
@@ -47,7 +47,7 @@ def measurement_info(measurement):
 		print (e.read())
 		return None
 
-## Given the results of a measurement it will return the id of all probes which failed at least once
+## Given the results of a measurement it will return the id of all probes which succeed
 def which_failed(response,verbose=0):
 	if len(response) >= 1:
 		## Build a list of all that fail and all that succeed, then combine to see which never succeeded
@@ -75,13 +75,12 @@ def which_failed(response,verbose=0):
 		print "There are no results in that response. It could be that the measurement has not began"
 		return None
 
-## Given a result set find the probes which succeeded at least once
-#def which_succeeded_once(result_set):
-
 ## Will return a list of a all probes involved in a measurement
 def id_of_all_probes(response):
 	return set([results['prb_id'] for results in response])
 
+## ~ Consider moving to Atlas_Query ~
+## Seperate as do_baseline -> ipv6
 ## Do the baseline measurement for probes provided or if none are provided, use all connected ipv6 probes
 def do_ipv6_baseline(probe_list=None):
 	measurements = []
@@ -91,16 +90,15 @@ def do_ipv6_baseline(probe_list=None):
 	chunks = ret_chunks(probe_list,499)
 	for chunk in chunks:
 		probe_string = ','.join(map(str, chunk))
-		## ~ Consider moving to Atals_Query
-		key = Atlas_Query.get_Key()
-		req = Atlas_Query.get_Req(key)
-		## ~
 		skeleton = Atlas_Query.get_type('dns')
 		skeleton = Atlas_Query.get_probes(skeleton, 1)
-		defs = {"target" : "2001:7b8:206:1::1", "type": "dns", "is_public":True, "description": "ipv6 baseline", "is_oneoff": True, "query_argument": "www.nlnetlabs.nl", "query_class": "IN", "query_type":"AAAA","af":6,'udp_payload_size':256}
-		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_list}]
+		#defs = {"target" : "2001:7b8:206:1::1", "type": "dns", "is_public":True, "description": "ipv6 baseline", "is_oneoff": False, "query_argument": "www.nlnetlabs.nl", "query_class": "IN", "query_type":"AAAA","af":6,'udp_payload_size':512,"interval":20 *60,"use_probe_resolver":False}
+		defs = {"target" : "2001:7b8:206:1::1", "type": "dns", "is_public":True, "description": "ipv6 baseline", "is_oneoff": True, "query_argument": "www.nlnetlabs.nl", "query_class": "IN", "query_type":"AAAA","af":6,'udp_payload_size':512,"interval":None,"use_probe_resolver":False}
+		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_string}]
 		Query = Atlas_Query.ext_Query_Builder(skeleton, [defs,probe_que])
-		measurement = Atlas_Query.send_Query(req, Query)
+		stop_time = Atlas_Query.get_Time(1200)
+		Query.update(stop_time)
+		measurement = Atlas_Query.send_Query(Query)
 		if measurement:
 			print "Measurement:",measurement
 			measurements.append(measurement)
@@ -111,11 +109,15 @@ def do_ipv6_baseline(probe_list=None):
 		return None
 
 if __name__ == "__main__":
+	#measurements = do_ipv6_baseline()
+	#print measurements
+	mes_in = measurement_info(1034089)
+	print mes_in['stop_time']
 	#measurements = [1034087,1034088,1034089]
-	measurements = [1031937,1031969]
-	for measurement in measurements:
-		mes_info = measurement_info(measurement)
-		response = get_results(measurement)
-		if response:
-			num_probes = len(id_of_all_probes(response))
-			fail_list = which_failed(response,1)
+	#measurements = [1031937,1031969]
+	#for measurement in measurements:
+		#mes_info = measurement_info(measurement)
+		#response = get_results(measurement)
+		#if response:
+			#num_probes = len(id_of_all_probes(response))
+			#fail_list = which_failed(response,1)

@@ -44,12 +44,10 @@ def ext_Query_Builder(skeleton,q):
 	probes 	= q[1]
 	##
 	## Definitions:
-	## Code sauce: Willem Toorop
 	for definition in skeleton['definitions']:
+		## Code sauce: Willem Toorop
 		definition.update(dict([(k, defs.get(k, None)) for k, v in definition.items() if k in defs]))
 	## Probes:
-	#for probe in probes:
-		#probe.update(dict([(k, probes.get(k, None)) for k, v in probe.items() if k in probes]))
 	for probe in range(len(probes)):
 		for k,v in skeleton['probes'][probe].iteritems():
 			val = probes[probe].get(k,None)
@@ -57,20 +55,21 @@ def ext_Query_Builder(skeleton,q):
 				skeleton['probes'][probe][k] = val
 	return skeleton
 
-def get_Time():
-	## Unix time stamps end = now + 5mins
-	start_time = time.time()
-	stop_time = time.time() + 300
+def get_Time(end_time):
+	## Unix time stamps
+	#start_time = time.time()
+	stop_time = int(time.time() + end_time)
+	return {"stop_time":stop_time}
 
 def get_type(t):## to add: default values for measurement type, these can change based on the input
 	if t == 'ping':
-		ping = {"definitions": [{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None,"is_public":None}]}
+		ping = 	{"definitions":	[{ "target":None, "description":None, "is_oneoff":None, "type":None, "af":None, "packets":None, "size":None,"is_public":None}]}
 		return ping
 	elif t == 'traceroute':
-		trace = {"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
+		trace =	{"definitions": [{ "target":None, "description":None, "is_public":None, "paris":None, "interval":None, "firsthop":None, "is_oneoff":True, "type":None, "protocol":None, "af":None,"is_public":None}] }
 		return trace
 	elif t == 'dns':
-		dns = {"definitions": [{"target": None, "query_argument": None, "query_class": None, "query_type": None, "description": None, "type": None, "af": None, "is_oneoff": None,"use_probe_resolver": False,"recursion_desired": False,'udp_payload_size':False}] }
+		dns =	{"definitions":	[{"target": None, "query_argument": None, "query_class": None, "query_type": None, "description": None, "type": None, "af": None, "is_oneoff": None,"use_probe_resolver": None, "recursion_desired": None, 'udp_payload_size':None, "interval":None}]}
 		return dns
 	else:
 		return None
@@ -82,9 +81,12 @@ def get_probes(skeleton,probeNum):
 		skeleton['probes'].append({"requested":None,"type":None,"value":None})
 	return skeleton
 
-def send_Query(request,Query):
+def send_Query(Query):
+	## Get key and request
+	key = get_Key()
+	req = get_Req(key)
 	try:
-		conn = urllib2.urlopen(request, json.dumps(Query))## conn missleading name, might be confused with a db connection
+		conn = urllib2.urlopen(req, json.dumps(Query))## conn missleading name, might be confused with a db connection
 		 ## If no waiting time is given, queries might fail in succession of one another.
 		 ## Learned the hard way...
 		 ## Now for a very loose quote:
@@ -98,9 +100,8 @@ def send_Query(request,Query):
 		time.sleep(3)
 		results = json.load(conn)
 		measurement = int(results["measurements"][0])
-		#print "Measurement ",(measurement)
 		return measurement
-	 ## code sauce: Willem Toorop
+	## code sauce: Willem Toorop
 	except HTTPError, e:
 		print e.read()
 		return None
