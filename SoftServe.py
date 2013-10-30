@@ -26,6 +26,10 @@ def listening(thread_list):
 			pass
 		server_sock.close()
 
+def pretty_time():
+	dt = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d/%H:%M:%S')
+	return dt
+
 ## decypher the callers intention
 ## ~ Name will be changed at some point ~
 def sched_something(sock,shed):
@@ -51,7 +55,7 @@ def sched_something(sock,shed):
 			## Run the scheduler on this thread
 			shed.run()
 			## Once this is sent the caller should close the connection on their side
-			sock[0].send("Measurement set to write at: {}".format(str(measurement_stop))))
+			sock[0].send("Measurement set to write at: {}".format(str(pretty_time(measurement_stop)))))
 	else:
 		## There is no stored proceedure to schedule matching the request, try again.
 		sock[0].send("Nothing to do here.")
