@@ -28,7 +28,9 @@ class Scheduler:
 ## Start
 def start():
 ## fetch state, build state, fly
-Scheduler = Scheduler()
+	Scheduler = Scheduler()
+## call do_baseline
+	do_baseline()
 
 ## Drop the baseline:
 def do_baseline():
@@ -42,7 +44,7 @@ def do_baseline():
 ## Use the results from the above list
 	size = 512 #(Smallest allowed)
 ## Atals_Query.base_line_dns returns a lits of measurement ids that were sucessful
-	Measurements = Atlas_Query.base_line_dns(probe_list)
+	Measurements = Atlas_Query.baseline_dns(probe_list)
 ## <- Schedule the reading of the measurements
 ## First we need to get the stop time of the measurements, we will use the stop time of the last measurement.
 ## This will be a safe method since the measurements are in sucession of one another.

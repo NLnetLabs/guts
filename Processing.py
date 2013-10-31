@@ -9,12 +9,6 @@ import Atlas_Query
 from Atlas_Query import *
 from urllib2 import Request
 
-## Chunk a list into smaller chunks
-## Code sauce: StackOverFlow
-def ret_chunks(lis,num):
-	for i in xrange(0, len(lis), num):
-		yield lis[i:i+num]
-
 ## Return results from the internet
 def get_results(measurement):
 	try:
@@ -61,17 +55,18 @@ def which_failed(response,verbose=0):
 			print "Of a total:",(len(succeed)+len(fail)),"probes"
 			print "Had :",len(fail),"Failure(s) and :",(len(succeed)),"Successful results"
 		## return the list containing the id of all probes which failed at least once.
-		return fail
+		return fail,succeeded
 	else:
 		print "There are no results in that response. It could be that the measurement has not began"
 		return None
 
+## ~ Consider moving to Probes ~
 ## Will return a list of a all probes involved in a measurement
 def id_of_all_probes(response):
 	return set([results['prb_id'] for results in response])
 
 if __name__ == "__main__":
-	#measurements = do_ipv6_baseline()
+	#measurements = Atals_Query.baseline_dns()
 	#print measurements
 	mes_in = measurement_info(1034089)
 	print mes_in['stop_time']

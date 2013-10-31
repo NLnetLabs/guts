@@ -43,7 +43,7 @@ def ret_chunks(lis,num):
 	for i in xrange(0, len(lis), num):
 		yield lis[i:i+num]
 
-def base_line_dns(target="2001:7b8:206:1::1",probe_list=None):
+def baseline_dns(target="2001:7b8:206:1::1",probe_list=None):
 	if not probe_list:
 		probe_list = probes_ipv6()
 	measurements = []
