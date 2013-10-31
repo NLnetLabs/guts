@@ -13,7 +13,6 @@ import sqlite3
 import datetime
 import Database
 from datetime import date
-import db_creator
 ##
 ## The following script is seperated into two:
 

@@ -9,15 +9,6 @@ import Atlas_Query
 from Atlas_Query import *
 from urllib2 import Request
 
-## Return the id of all connected ipv6 probes
-def probes_ipv6():
-	probes = []
-	response = urllib2.urlopen("https://atlas.ripe.net/api/v1/probe/?prefix_v6=::/0&limit=0").read()
-	response = json.loads(response)
-	## AWW YISS!! list comprehension xD
-	probes = [probe['id'] for probe in [probes for probes in response['objects'] if probes['status'] == 1]]
-	return probes
-
 ## Chunk a list into smaller chunks
 ## Code sauce: StackOverFlow
 def ret_chunks(lis,num):
@@ -78,35 +69,6 @@ def which_failed(response,verbose=0):
 ## Will return a list of a all probes involved in a measurement
 def id_of_all_probes(response):
 	return set([results['prb_id'] for results in response])
-
-## ~ Consider moving to Atlas_Query ~
-## Seperate as do_baseline -> ipv6
-## Do the baseline measurement for probes provided or if none are provided, use all connected ipv6 probes
-def do_ipv6_baseline(probe_list=None):
-	measurements = []
-	if not probe_list:
-		probe_list = probes_ipv6()
-	probe_string = ""
-	chunks = ret_chunks(probe_list,499)
-	for chunk in chunks:
-		probe_string = ','.join(map(str, chunk))
-		skeleton = Atlas_Query.get_type('dns')
-		skeleton = Atlas_Query.get_probes(skeleton, 1)
-		#defs = {"target" : "2001:7b8:206:1::1", "type": "dns", "is_public":True, "description": "ipv6 baseline", "is_oneoff": False, "query_argument": "www.nlnetlabs.nl", "query_class": "IN", "query_type":"AAAA","af":6,'udp_payload_size':512,"interval":20 *60,"use_probe_resolver":False}
-		defs = {"target" : "2001:7b8:206:1::1", "type": "dns", "is_public":True, "description": "ipv6 baseline", "is_oneoff": True, "query_argument": "www.nlnetlabs.nl", "query_class": "IN", "query_type":"AAAA","af":6,'udp_payload_size':512,"interval":None,"use_probe_resolver":False}
-		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_string}]
-		Query = Atlas_Query.ext_Query_Builder(skeleton, [defs,probe_que])
-		stop_time = Atlas_Query.get_Time(1200)
-		Query.update(stop_time)
-		measurement = Atlas_Query.send_Query(Query)
-		if measurement:
-			print "Measurement:",measurement
-			measurements.append(measurement)
-			Atlas_Query.write_Measurement(measurement,'dns baseline')
-	if measurements:
-		return measurements
-	else:
-		return None
 
 if __name__ == "__main__":
 	#measurements = do_ipv6_baseline()

@@ -29,12 +29,45 @@ def get_Key():
 		sys.exit(0)
 	return key
 
+## Add header information
 def get_Req(key):
 	url = "https://atlas.ripe.net/api/v1/measurement/"
 	request = urllib2.Request("%s?key=%s" % (url, key))
 	request.add_header("Content-Type", "application/json")
 	request.add_header("Accept", "application/json")
 	return request
+
+## Chunk a list into smaller chunks
+## Code sauce: StackOverFlow
+def ret_chunks(lis,num):
+	for i in xrange(0, len(lis), num):
+		yield lis[i:i+num]
+
+def base_line_dns(target="2001:7b8:206:1::1",probe_list=None):
+	if not probe_list:
+		probe_list = probes_ipv6()
+	measurements = []
+	probe_string = ""
+	chunks = ret_chunks(probe_list,499)
+	skeleton = Atlas_Query.get_type('dns')
+	skeleton = Atlas_Query.get_probes(skeleton, 1)
+	defaults = {"target" : target, "type": "dns", "af":6, "description": "ipv6 baseline", "is_oneoff": True}
+	defaults.update('udp_payload_size':512,"interval":None, "use_probe_resolver":False, "query_type":"AAAA"})
+	defaults.update({"query_argument": "www.nlnetlabs.nl", "query_class": "IN", "is_public":True)
+	for chunk in chunks:
+		probe_string = ','.join(map(str, chunk))
+		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_string}]
+		Query = Atlas_Query.ext_Query_Builder(skeleton, [defs,probe_que])
+		Query.update(Atlas_Query.get_Time(1200))
+		measurement = Atlas_Query.send_Query(Query)
+		if measurement:
+			print "Measurement:",measurement
+			measurements.append(measurement)
+			Atlas_Query.write_Measurement(measurement,'dns baseline')
+	if measurements:
+		return measurements
+	else:
+		return None
 
 ## Query builder for external scripts, a skeleton(list of dicts) is parsed as well as the query(list of dicts)
 ## This method will match the keys with the corresponding values, query -> skeleton. to flesh out the skeleton
