@@ -57,7 +57,7 @@ def ret_max_something():
 
 ## view all items on the specified table
 def view_tbl(tbl):
-	cursor = Database.ret_con.cursor()## returns a connection which we can then assign a cursor to.
+	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
 	rows = cursor.execute("Select * from "+tbl)
 	for row in rows:## to add: include column names and tab everything into place to imporve readability
 		print row
