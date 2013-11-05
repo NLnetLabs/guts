@@ -62,6 +62,7 @@ def view_tbl(tbl):
 	for row in rows:## to add: include column names and tab everything into place to imporve readability
 		print row
 
+## Consider removal in favour of list insert.
 ## Inserts data into the database, a tuple(table name, values) is parsed
 def insert_tuple_in_db(inserts):
 	if type(inserts) != type(tuple):
@@ -85,9 +86,10 @@ def list_insert(tbl,insert):
 	cursor = Database.get_con().cursor()
 	if not insert:
 		return
+	## Since a list is parsed the [ and ] need to be removed. To do this it is parsed as a string, the first and last chars are removed.
 	query = "insert into "+tbl+"({}) values({})".format(str(insert[0])[1:-1],str(insert[1])[1:-1])
 	try:
-		print query
+		#print query ## Testing purposes
 		cursor.execute(query)
 		return True
 	except:
