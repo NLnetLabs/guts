@@ -5,7 +5,7 @@ import os
 import sqlite3
 
 ## return a connection to the database
-def ret_con():
+def get_con():
 	filename = 'Atlas.db'
 	if not os.path.exists(filename):
 		con = sqlite3.connect(filename)
@@ -32,10 +32,10 @@ def create_db(con):
 	db_spec.append("""
 			create table tbl_Schedule(
 				Sched_num			integer		primary key 	autoincrement,
-				name    			text,
+				task				text,
+				argument			blob,
 				datetime			text,
 				timestamp			int,
-				task				text,
 				persistent			text,
 				completed			text
 			);
@@ -62,7 +62,7 @@ def create_db(con):
 	con.commit()
 	
 if __name__ == "__main__":
-	ret_con()
+	get_con()
 
 ## set Vim tabs for viewing
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

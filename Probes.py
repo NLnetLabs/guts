@@ -55,15 +55,3 @@ def ret_ipv6_probes():
 			#print e
 	#con.commit()
 	#con.close()
-
-## ~ Consider removal and use DB_writer ~
-## DB insert method
-def insert_into_db(tbl,tbl_schem):
-	keys = ""
-	vals = ""
-	for k,v in tbl_schem.iteritems():
-		keys += "'"+(k)+"',"
-		vals += "'"+str(v)+"',"
-	keys = keys[:-1]
-	vals = vals[:-1]
-	cursor.execute("insert into "+tbl+"("+(keys)+") values("+vals+")")

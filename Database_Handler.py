@@ -22,8 +22,8 @@ from datetime import date
 ## ---------------------------------------------------------------------------------------------------------
 
 ## return a connection to the database
-def ret_con():
-	con = Database.ret_con()
+def get_con():
+	con = Database.get_con()
 	return con
 
 ## Return all the measurement ids stored in the database
@@ -46,7 +46,7 @@ def sanitize_dict(d):
 	return d
 
 ## This can be chaged to return the last id of the last measurement or even all the info of the last measurement
-def ret_max_something():
+def get_max_something():
 	## change the query below to match the use of this method.
 	cursor.execute("Select max(table) from database")
 	row = cursor.fetchone()
@@ -80,6 +80,19 @@ def insert_tuple_in_db(inserts):
 			query = "insert into "+tbl+"({}) values({})".format(keys,vals)
 			cursor.execute(query,que.values())
 
+## Much simpler way of inserting values into the database
+def list_insert(tbl,insert):
+	cursor = Database.get_con().cursor()
+	if not insert:
+		return
+	query = "insert into "+tbl+"({}) values({})".format(str(insert[0])[1:-1],str(insert[1])[1:-1])
+	try:
+		print query
+		cursor.execute(query)
+		return True
+	except:
+		return False
+
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}
@@ -90,16 +103,19 @@ def get_tbl_schema(tbl):
 
 ## Return the columns of a table in a list.
 def get_tbl_columns(tbl):
-	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+	cursor = Database.get_con().cursor()## returns a connection which we can then assign a cursor to.
 	results = [str(r[1]) for r in cursor.execute("PRAGMA table_info("+tbl+");")]
 	cursor.close()
 	return results
 	
 ## Return the rows and columns of a table in the form of a tuple.
-def ret_table(tbl):
-	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+def get_table(tbl,args = None):
+	cursor = Database.get_con().cursor()## returns a connection which we can then assign a cursor to.
 	columns = get_tbl_columns(tbl)
-	rows = cursor.execute("Select * from "+str(tbl)).fetchall()
+	if not args:
+		rows = cursor.execute('Select * from '+str(tbl)).fetchall()
+	else:
+		rows = cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()
 	return columns,rows
 
 ## ---------------------------------------------------------------------------------------------------------
@@ -148,7 +164,7 @@ def view_measurement_info(measurement):
 ## Return the time stamp in the format yyyy-mm-dd/hh-mm-ss
 ## Useful for converting a start_time and end_time of a measurement
 ## Found on Stackoverflow
-def ret_timestamp_to_dt(ts):
+def get_timestamp_to_dt(ts):
 	dt = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d/%H:%M:%S')
 	return dt
 
