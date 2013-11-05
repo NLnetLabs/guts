@@ -83,9 +83,24 @@ def insert_tuple_in_db(inserts):
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}
+	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
 	for r in cursor.execute("PRAGMA table_info("+tbl+");"):
 		d.update({str(r[1]):None})
 	return d
+
+## Return the columns of a table in a list.
+def get_tbl_columns(tbl):
+	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+	results = [str(r[1]) for r in cursor.execute("PRAGMA table_info("+tbl+");")]
+	cursor.close()
+	return results
+	
+## Return the rows and columns of a table in the form of a tuple.
+def ret_table(tbl):
+	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+	columns = get_tbl_columns(tbl)
+	rows = cursor.execute("Select * from "+str(tbl)).fetchall()
+	return columns,rows
 
 ## ---------------------------------------------------------------------------------------------------------
 ## Measurement specific auxiliary methods.

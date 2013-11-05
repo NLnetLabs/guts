@@ -33,7 +33,7 @@ def measurement_info(measurement):
 		return None
 
 ## Given the results of a measurement it will return the id of all probes which succeed
-def which_failed(response,verbose=0):
+def failed_succeeded(response,verbose=0):
 	if len(response) >= 1:
 		## Build a list of all that fail and all that succeed, then combine to see which never succeeded
 		fail = set()

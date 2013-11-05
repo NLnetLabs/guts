@@ -12,34 +12,39 @@ import Atlas_Query
 import Database_Handler as DB_Handle
 
 ## Scheduler class
-class Scheduler:
+#class Scheduler:
+## Here we will initialize the values
+	#targeted = []	#List of targeted probes
+	#results = []	#List of results
 ## Get the last state
-## Total is the number of times a measurement has run in the past 7 days
-## Results are the results of those measurements
-	def get_Total():
-	def get_results():
+	#def get_Targeted():
+	#def get_results():
 ## Update the current state
-	def Update_Total():
-	def Update_Results():
+	#def Update_Targeted():
+	#def Update_Results():
 ## Set the state in the database
-	def set_Total():
-	def set_Results():
+	#def set_Targeted():
+	#def set_Results():
 
 ## Start
 def start():
+## Get scheduled tasks
+	tasks = get_tasks()
 ## fetch state, build state, fly
-	Scheduler = Scheduler()
+	#Scheduler = Scheduler()
 ## call do_baseline
-	do_baseline()
+
+## See what we gotta do.
+def get_tasks():
+	results = DB_Handle.ret_table("tbl_schedule")
 
 ## Drop the baseline:
 def do_baseline():
-
+## Check for probes in the scheduler state
+	#probe_list = Scheduler.targeted
+	if not probe_list:
 ## Get all IPv6 probes with status 1
-	probe_list = Probes.ret_ipv6_probes()
-## Or use the probes from the scheduler databse
-## <- Maybe a scheduler fetch state method here
-
+		probe_list = Probes.ret_ipv6_probes()
 ## Baseline Measurement DNS with all probes
 ## Use the results from the above list
 	size = 512 #(Smallest allowed)
@@ -48,20 +53,16 @@ def do_baseline():
 ## <- Schedule the reading of the measurements
 ## First we need to get the stop time of the measurements, we will use the stop time of the last measurement.
 ## This will be a safe method since the measurements are in sucession of one another.
-	stop_time = measurement_info(mesurements[:len(Measurements)-1])['stop_time']
-## The problem with the scheduler is that there is no way to get the values returned by the methods called.
-## So.. We will need to store the results into the database, fetch them then proceed
-	shd.enterabs(stop_time,1,DB_Handle.process_and_store,(measurements,))
-## The program will now halt here until the stop time.
-## If anything else needs to be done now would be a good time to start a thread and do it. The thread can be killed after. Just a note.
-	print ("The program will now halt until the measurements have stopped")
-	shd.run()
+	stop_time = measurement_info(mesurements[:len(Measurements)-1])['stop_time'] ## Unix timestamp here
+## <- schedule reading the measurements
+
+## What we will do here is process the results then store them.
+#def write_results():
 ## Now get the results of the measurements.
-	fail_list = []
-	success_list = []
-	for measurement in measurements:
+	#for measurement in measurements:
+	#	fail_list, success_list = Processing.failed_succeeded(measurement)
 ## Update the scheduler state here
-# 		Scheduler.Update_Total()
+# 		Scheduler.Update_Targeted()
 # 		Scheduler.Update_Results()
 
 ##Things scheduler will do:
@@ -80,5 +81,5 @@ def do_baseline():
 ##	*Probes with PMTU greater than 1280 but less than 1500
 ##	*etc..
 
-#if __name__ == "__main__":
-# 	Start()
+if __name__ == "__main__":
+	start()

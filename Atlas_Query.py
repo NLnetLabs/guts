@@ -52,8 +52,8 @@ def baseline_dns(target="2001:7b8:206:1::1",probe_list=None):
 	skeleton = Atlas_Query.get_type('dns')
 	skeleton = Atlas_Query.get_probes(skeleton, 1)
 	defaults = {"target" : target, "type": "dns", "af":6, "description": "ipv6 baseline", "is_oneoff": True}
-	defaults.update('udp_payload_size':512,"interval":None, "use_probe_resolver":False, "query_type":"AAAA"})
-	defaults.update({"query_argument": "www.nlnetlabs.nl", "query_class": "IN", "is_public":True)
+	defaults.update({'udp_payload_size':512,"interval":None, "use_probe_resolver":False, "query_type":"AAAA"})
+	defaults.update({"query_argument": "www.nlnetlabs.nl", "query_class": "IN", "is_public":True})
 	for chunk in chunks:
 		probe_string = ','.join(map(str, chunk))
 		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_string}]

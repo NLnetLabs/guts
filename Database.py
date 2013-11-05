@@ -8,13 +8,15 @@ import sqlite3
 def ret_con():
 	filename = 'Atlas.db'
 	if not os.path.exists(filename):
-		create_db()
+		con = sqlite3.connect(filename)
+		create_db(con)
 	con = sqlite3.connect(filename)
 	return con
 
-## Pretty obvious hat this does, if not:
+## Pretty obvious what this does, if not:
 ## Create the database based on the given spec
-def create_db():
+def create_db(con):
+	cursor = con.cursor()
 	db_spec = []
 	db_spec.append("""
 			create table tbl_Measurements(
@@ -29,11 +31,10 @@ def create_db():
 			""")
 	db_spec.append("""
 			create table tbl_Schedule(
-				Sched_num			integer		primary key 	auto_increment,
+				Sched_num			integer		primary key 	autoincrement,
 				name    			text,
-				time_stamp			text,
 				datetime			text,
-				timestamp			text,
+				timestamp			int,
 				task				text,
 				persistent			text,
 				completed			text
@@ -42,7 +43,7 @@ def create_db():
 	db_spec.append("""
 			create table tbl_Schedule_state(
 				pkey				int			primary key,
-				msm_Total			blob,
+				probes_Targeted		blob,
 				msm_Results			blob,
 				probes				blob
 			);
@@ -58,7 +59,10 @@ def create_db():
 			""")
 	for x in db_spec:
 		cursor.execute(x)
-	conn.commit()
+	con.commit()
+	
+if __name__ == "__main__":
+	ret_con()
 
 ## set Vim tabs for viewing
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

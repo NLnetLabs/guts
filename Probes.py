@@ -16,7 +16,7 @@ def ret_ipv6_probes():
 		response = json.loads(response)
 		probes = [probe['id'] for probe in [probes for probes in response['objects'] if probes['status'] == 1]]
 		return probes
-	except Exception e:
+	except Exception, e:
 		print ("There was and error:"+e)
 		## Use: if None, there was an error
 		return None
