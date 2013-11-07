@@ -101,6 +101,20 @@ def list_insert(tbl,insert):
 		con.close()
 		return False
 
+def list_update(tbl,updates):
+	con = Database.get_con()
+	cursor = con.cursor()
+	if not updates:
+		print "Nothing to update."
+		return
+	try:
+		query = 'update '+str(tbl)+' set '+str(updates[0])+' = '+str(updates[1])+' where '+str(updates[2])
+		print query
+		cursor.execute(query)
+		con.commit()
+	except Exception, e:
+		print ("There was an error updating: "+str(e))
+
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}

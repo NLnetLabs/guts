@@ -19,8 +19,8 @@ def create_db(con):
 	db_spec = []
 	db_spec.append("""
 			create table tbl_Measurements(
-				Measurement_id			integer		primary key,
-				Measurement_date		text,
+				measurement_id			integer		primary key,
+				measurement_date		text,
 				Target					text,
 				description				int,
 				successful_probes		blob,
@@ -30,7 +30,7 @@ def create_db(con):
 			""")
 	db_spec.append("""
 			create table tbl_Schedule(
-				Sched_num			integer		primary key 	autoincrement,
+				sched_num			integer		primary key 	autoincrement,
 				task				text,
 				argument			blob,
 				datetime			text,
