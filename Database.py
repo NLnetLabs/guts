@@ -13,7 +13,6 @@ def get_con():
 	con = sqlite3.connect(filename)
 	return con
 
-## Pretty obvious what this does, if not:
 ## Create the database based on the given spec
 def create_db(con):
 	cursor = con.cursor()

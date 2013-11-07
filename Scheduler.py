@@ -4,9 +4,11 @@
 ## This program will be called by an external scheduler
 ## Scheduler orcastrates the flow
 
+import json
 import time
 import sched
 import Probes
+import urllib2
 import Database
 import threading
 import Processing
@@ -46,13 +48,16 @@ def start():
 	for task in tasks:
 		task_name = task["task"]
 		task_args = task["argument"]
-		print task_name, task_args
+		#print task_name, task_args
 		## Here we can filter out the task and move them in the right direction.
 		## For instance if the tasks is to process measurements then, create a new thread and assign it to process the measurements.
+		if task_name == "process_measurements":
+			task_args = task_args[1:-1].replace(" ","").split(",")
+			thread_list.append(threading.Thread(target=process_results, args=((task_args),)))
+	for thread in thread_list:
+		thread.start()
 		## fetch state, build state, fly
 		#Scheduler = Scheduler()
-		#thread_list.appned(threading.Thread(target=, args =(,))
-	#thread_list.start()
 
 ## See what we gotta do.
 def get_tasks():
@@ -108,16 +113,30 @@ def schedule_task(task,stop_time,arguments,persistent):
 	## Now insert.
 	## A true will be returned if the task was successfully inserted, false if it wasn't.
 	ret = DB_Handle.list_insert("tbl_Schedule",(columns,[task,arguments,date_time,stop_time,persistent,completed]))
-	#if ret:
-		#print ("Task scheduled.")
-	#else:
-		#print ("Error scheduling that task.")
+	if ret:
+		print ("Task scheduled.")
+	else:
+		print ("Error scheduling that task.")
 
 ## What we will do here is process the results then store them.
-def write_results():
+def process_results(measurements):
 ## Now get the results of the measurements.
 	for measurement in measurements:
-		fail_list, success_list = Processing.failed_succeeded(measurement)
+		response = Processing.get_results(measurement)
+		if response:
+			## Get measurement header info:
+			header = Processing.measurement_info(measurement)
+			date = DB_Handle.get_timestamp_to_dt(header['stop_time'])
+			desc = header['description']
+			target = header['dst_addr']
+			fail_list, success_list = Processing.failed_succeeded(response,1)
+			columns = DB_Handle.get_tbl_columns("tbl_Measurements")
+			ret = DB_Handle.list_insert("tbl_Measurements",(columns,[str(measurement),str(date),str(target),str(desc),str(success_list)[5:-2],str(fail_list)[5:-2],str((len(success_list)+ len(fail_list)))]))
+			if ret:
+				print ("Results inserted.")
+			else:
+				print ("Error inserting results for measurement: "+str(measurement))
+			
 ## <- Update the scheduler state here
 # 		Scheduler.Update_Targeted()
 # 		Scheduler.Update_Results()

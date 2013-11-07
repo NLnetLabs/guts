@@ -55,7 +55,7 @@ def failed_succeeded(response,verbose=0):
 			print "Of a total:",(len(succeed)+len(fail)),"probes"
 			print "Had :",len(fail),"Failure(s) and :",(len(succeed)),"Successful results"
 		## return the list containing the id of all probes which failed at least once.
-		return fail,succeeded
+		return fail,succeed
 	else:
 		print "There are no results in that response. It could be that the measurement has not began"
 		return None
@@ -68,13 +68,13 @@ def id_of_all_probes(response):
 if __name__ == "__main__":
 	#measurements = Atals_Query.baseline_dns()
 	#print measurements
-	mes_in = measurement_info(1034089)
-	print mes_in['stop_time']
-	#measurements = [1034087,1034088,1034089]
+	#mes_in = measurement_info(1034089)
+	#print mes_in['stop_time']
+	measurements = [1034087,1034088,1034089]
 	#measurements = [1031937,1031969]
-	#for measurement in measurements:
+	for measurement in measurements:
 		#mes_info = measurement_info(measurement)
-		#response = get_results(measurement)
-		#if response:
-			#num_probes = len(id_of_all_probes(response))
-			#fail_list = which_failed(response,1)
+		response = get_results(measurement)
+		if response:
+			num_probes = len(id_of_all_probes(response))
+			fail_list = failed_succeeded(response,1)
