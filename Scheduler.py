@@ -4,73 +4,95 @@
 ## This program will be called by an external scheduler
 ## Scheduler orcastrates the flow
 
+import time
 import sched
 import Probes
 import Database
+import threading
 import Processing
 import Atlas_Query
 import Database_Handler as DB_Handle
 
 ## Scheduler class
 class Scheduler:
-## Here we will initialize the values
-	propety = "" ## The network propety this scheduler will represent
-	targeted = []	#List of targeted probes
-	results = []	#List of results
+	## Here we will initialize the values
 	## Additional values could be added for specific propeties.
-## Get the last state
-	def get_propety():
-	def get_Targeted():
-	def get_results():
-## Update the current state
-	def Update_Targeted():
-	def Update_Results():
-## Set the state in the database
-	def set_Targeted():
-	def set_Results():
+	def __init__(self):
+		self.propety = "" ## The network propety this scheduler will represent
+		selftargeted = []	#List of targeted probes
+		self.results = []	#List of results
+	## Get the last state
+	#def get_propety():
+	#def get_Targeted():
+	#def get_results():
+	
+	## Update the current state
+	#def Update_Targeted():
+	#def Update_Results():
+	
+	## Set the state in the database
+	#def set_Targeted():
+	#def set_Results():
 
 ## Start
 def start():
+	#add_task() ## Testing.
 	## Get scheduled tasks
-	## insert some schedule data * for testing
-	do_baseline()
-	## Now get the tasks
 	tasks = get_tasks()
-	for task in tasks:## For now pass
-		## Maybe spawn a new thread for each task that needs to be performed now.
-		pass
-
-	## fetch state, build state, fly
-	#Scheduler = Scheduler()
+	if not tasks:
+		print "There are no tasks that need to be done now."
+		return
+	thread_list = []
+	for task in tasks:
+		task_name = task["task"]
+		task_args = task["argument"]
+		print task_name, task_args
+		## Here we can filter out the task and move them in the right direction.
+		## For instance if the tasks is to process measurements then, create a new thread and assign it to process the measurements.
+		## fetch state, build state, fly
+		#Scheduler = Scheduler()
+		#thread_list.appned(threading.Thread(target=, args =(,))
+	#thread_list.start()
 
 ## See what we gotta do.
 def get_tasks():
-	columns, rows = DB_Handle.ret_table("tbl_schedule",'completed == "no" or "No"')
+	## Get the contents of the table tbl_Schedule and provide the argument: if not completed
+	rows = DB_Handle.get_table("tbl_Schedule",None,'"completed" == "No" or "no"')
 	if not rows:
 		print "There are no incomplete tasks scheduled."
 		return None
 	else:
-		print columns
-		i = columns.index("timestamp")
-		for row in rows:
-			print i,row[i]
+		now = int(time.time()) ## Get current time
+		## filter out the tasks that do not need to be done now.
+		rows = [row for row in rows if row["timestamp"] < now]
+		if rows:
+			return rows
+		else:
+			return None
 
 ## Drop the baseline:
-## Maybe parse the type of baseline measurement like: dns_ipv6.
+## Maybe parse the type of baseline measurement type like: dns_ipv6.
 def do_baseline():
 ## Check for probes in the scheduler state
-	#probe_list = Scheduler.targeted
-	#if not probe_list:
+	probe_list = Scheduler.targeted
+	if not probe_list:
 		## Get all IPv6 probes with status 1
-		#probe_list = Probes.ret_ipv6_probes()
+		probe_list = Probes.ret_ipv6_probes()
 	## Atals_Query.base_line_dns returns a lits of ids of meassurements that were sucessful
-	#Measurements = Atlas_Query.baseline_dns(probe_list)
-	measurements = [1034087,1034088,1034089] ## temp list of measurements
+	Measurements = Atlas_Query.baseline_dns(probe_list)
 	## Task - What needs to be done after this has finished.
 	task = "read_measurements"
 	## stop time
 	stop_time = Processing.measurement_info(measurements[len(measurements)-1])['stop_time'] ## Unix timestamp here
 	## Whether the task is persistent like conducting measurements on a regular basis
+	persistent = "No" # reading measurements is not persistent
+	schedule_task(task,stop_time,str(measurements),persistent)
+
+## This method is for testing purposes only.
+def add_task():
+	measurements = [1034087,1034088,1034089] ## temp list of measurements
+	task = "process_measurements"
+	stop_time = Processing.measurement_info(measurements[len(measurements)-1])['stop_time'] ## Unix timestamp here
 	persistent = "No" # reading measurements is not persistent
 	schedule_task(task,stop_time,str(measurements),persistent)
 
@@ -86,10 +108,10 @@ def schedule_task(task,stop_time,arguments,persistent):
 	## Now insert.
 	## A true will be returned if the task was successfully inserted, false if it wasn't.
 	ret = DB_Handle.list_insert("tbl_Schedule",(columns,[task,arguments,date_time,stop_time,persistent,completed]))
-	if ret:
-		print ("Success.")
-	else:
-		print ("Error scheduling that task.")
+	#if ret:
+		#print ("Task scheduled.")
+	#else:
+		#print ("Error scheduling that task.")
 
 ## What we will do here is process the results then store them.
 def write_results():

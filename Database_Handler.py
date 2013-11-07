@@ -83,16 +83,22 @@ def insert_tuple_in_db(inserts):
 
 ## Much simpler way of inserting values into the database
 def list_insert(tbl,insert):
-	cursor = Database.get_con().cursor()
+	con = Database.get_con()
+	cursor = con.cursor()
 	if not insert:
 		return
-	## Since a list is parsed the [ and ] need to be removed. To do this it is parsed as a string, the first and last chars are removed.
+	## Since a list is parsed the "[" "]" need to be removed. To do this it is parsed as a string, the first and last chars are removed.
 	query = "insert into "+tbl+"({}) values({})".format(str(insert[0])[1:-1],str(insert[1])[1:-1])
 	try:
-		#print query ## Testing purposes
+		print query ## Testing purposes
 		cursor.execute(query)
+		con.commit()
+		cursor.close()
+		con.close()
 		return True
 	except:
+		cursor.close()
+		con.close()
 		return False
 
 ## Return the table schema as a dict({column name : None})
@@ -109,16 +115,29 @@ def get_tbl_columns(tbl):
 	results = [str(r[1]) for r in cursor.execute("PRAGMA table_info("+tbl+");")]
 	cursor.close()
 	return results
-	
-## Return the rows and columns of a table in the form of a tuple.
-def get_table(tbl,args = None):
-	cursor = Database.get_con().cursor()## returns a connection which we can then assign a cursor to.
+
+## Return the rows and columns of a table in a list of ditcionaries.
+## Dictionaries make it easier since all the data is tagged eg: {"completed": yes}
+def get_table(tbl,cols = None,args = None):
+	## returns a connection which we can then assign a cursor to.
+	cursor = Database.get_con().cursor()
 	columns = get_tbl_columns(tbl)
-	if not args:
-		rows = cursor.execute('Select * from '+str(tbl)).fetchall()
-	else:
-		rows = cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()
-	return columns,rows
+	if not args and not cols: ## Specified neither columns nor arguments
+		rows = [dict(zip(columns,  row)) for row in [list(row) for row in cursor.execute('Select * from '+str(tbl)).fetchall()]]
+		#rows = [list(row) for row in cursor.execute('Select * from '+str(tbl)).fetchall()] ## ~depreciated~ list approach.
+	elif cols and not args: ## Specified columns but no argument
+		rows = [dict(zip(cols.split(","),row)) for row in [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)).fetchall()]]
+		#rows = [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)).fetchall()] ## ~depreciated~ list approach.
+	elif args and not cols: ## Specified argument but not columns
+		rows = [dict(zip(columns,  row)) for row in [list(row) for row in cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()]]
+		#rows = [list(row) for row in cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()] ## ~depreciated~ list approach.
+	else: ## Specified columns and argument
+		rows = [dict(zip(cols.split(","),row)) for row in [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)+' where '+str(args)).fetchall()]]
+		#rows = cursor.execute('Select '+( str(cols) )+' from '+str(tbl)+' where '+str(args)).fetchall()[0] ## ~depreciated~ list approach.
+	## Close up.
+	Database.get_con().close()
+	cursor.close()
+	return rows
 
 ## ---------------------------------------------------------------------------------------------------------
 ## Measurement specific auxiliary methods.
