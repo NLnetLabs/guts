@@ -1,0 +1,44 @@
+#IPV6 Capable:
+	- Do baseline:
+		- Get all ipv6 probes
+		- Baseline dns
+	- Filter results:
+		- Failed Succeeded
+	- Store results:
+		- Process results
+		- Insert into database
+	- Update Scheduler state
+
+#IPV6 capable resolvers:
+	- Use IPV6 capable probes 
+	- Update probes table
+
+#probes resolver:
+	- Use IPV6 capable probes
+		- Use results from IPV6 capable
+	- Use IPV4 probes:
+		- Get all ipv4 probes
+	- Query our nameserver
+		- IPV4 and IPV6
+	- Process results
+		- Get resolver from answer, compare with results
+	- Update probes
+
+#DNSEC capable resolvers:
+	- Use probes resolvers
+
+#probes with PMTU 1500:
+	- Ues IPV6 capable
+	- Use IPV4
+	- Do baseline
+	- Do climbing requests -- name subject to change
+	- Process results
+	- Store results
+	- Update probes table
+
+#probes with 1280 < PMTU < 1500:
+	- Use those which failed 1500
+	- Filter those which are capable
+	- Do request larger than 1280
+	- process results
+	- store results
