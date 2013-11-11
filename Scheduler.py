@@ -38,6 +38,7 @@ class Scheduler:
 
 ## Start
 def start():
+	## Testing git
 	#add_task() ## Testing.
 	## Get scheduled tasks
 	tasks = get_tasks()
