@@ -19,13 +19,13 @@ def create_db(con):
 	db_spec = []
 	db_spec.append("""
 			create table tbl_Measurements(
-				measurement_id			integer		primary key,
-				measurement_date		text,
-				Target					text,
-				description				int,
-				successful_probes		blob,
-				unsuccessful_probes		blob,
-				total_probes			int
+				measurement_id		integer		primary key,
+				measurement_date	text,
+				Target				text,
+				description			int,
+				successful_probes	blob,
+				unsuccessful_probes	blob,
+				total_probes		int
 			);
 			""")
 	db_spec.append("""
@@ -35,7 +35,6 @@ def create_db(con):
 				argument			blob,
 				datetime			text,
 				timestamp			int,
-				persistent			text,
 				completed			text
 			);
 			""")
@@ -54,6 +53,13 @@ def create_db(con):
 				country				text,
 				last_result			text,
 				measurements		blob
+			);
+			""")
+	db_spec.append("""
+			create table tbl_Routines(
+				routine_name		text		primary key,
+				persistent			text,
+				interval			int
 			);
 			""")
 	for x in db_spec:

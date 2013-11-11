@@ -45,19 +45,27 @@ def sanitize_dict(d):
 		del d[delkeys[i]]
 	return d
 
-## This can be chaged to return the last id of the last measurement or even all the info of the last measurement
-def get_max_something():
+## Get the row of a specific column
+def get_max(tbl,cols,args=0):
+	cursor = Database.get_con().cursor()
 	## change the query below to match the use of this method.
-	cursor.execute("Select max(table) from database")
-	row = cursor.fetchone()
-	if row[0] is None:
-		return 0
-	else:
-		return row[0]
+	q = "Select max("+str(col[0])+") from "+str(tbl)
+	if args and len(cols) == 1:
+		q += " where " + str(args)
+	try:
+		cursor.execute(q)
+		row = cursor.fetchone()
+		if row[0] is None:
+			return 0
+		else:
+			return row[0]
+	except Exception,e:
+		print (e) ## Maybe not necessary
+		return None
 
 ## view all items on the specified table
 def view_tbl(tbl):
-	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+	cursor = Database.get_con().cursor()## returns a connection which we can then assign a cursor to.
 	rows = cursor.execute("Select * from "+tbl)
 	for row in rows:## to add: include column names and tab everything into place to imporve readability
 		print row
@@ -118,7 +126,7 @@ def list_update(tbl,updates):
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}
-	cursor = Database.ret_con().cursor()## returns a connection which we can then assign a cursor to.
+	cursor = Database.get_con().cursor()## returns a connection which we can then assign a cursor to.
 	for r in cursor.execute("PRAGMA table_info("+tbl+");"):
 		d.update({str(r[1]):None})
 	return d
@@ -132,7 +140,7 @@ def get_tbl_columns(tbl):
 
 ## Return the rows and columns of a table in a list of ditcionaries.
 ## Dictionaries make it easier since all the data is tagged eg: {"completed": yes}
-def get_table(tbl,cols = None,args = None):
+def query_table(tbl,cols = None,args = None):
 	## returns a connection which we can then assign a cursor to.
 	cursor = Database.get_con().cursor()
 	columns = get_tbl_columns(tbl)
@@ -258,7 +266,7 @@ def add_single_measurement_to_db(measurement,insert_measurement=1):
 		mes_info = measurement_info(measurement)
 		if "Stopped" in mes_info['status'].values():
 			## call all inserts
-			con = ret_con()
+			con = get_con()
 			cursor = con.cursor()
 			inserts = []
 			## Deal with measurements info

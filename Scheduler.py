@@ -21,13 +21,13 @@ class Scheduler:
 	## Additional values could be added for specific propeties.
 	def __init__(self):
 		self.propety = "" ## The network propety this scheduler will represent
-		selftargeted = []	#List of targeted probes
+		self.targeted = []	#List of targeted probes
 		self.results = []	#List of results
 	## Get the last state
 	#def get_propety():
 	#def get_Targeted():
 	#def get_results():
-	
+
 	## Update the current state
 	#def Update_Targeted():
 	#def Update_Results():
@@ -40,28 +40,40 @@ class Scheduler:
 def start():
 	#add_task() ## Testing.
 	## Get scheduled tasks
-	tasks = get_tasks()
-	if not tasks:
-		print "There are no tasks that need to be done now."
-		return
+	#tasks = get_tasks()
+	#if not tasks:
+		#print "There are no tasks that need to be done now."
+		#return
 	#thread_list = []
-	for task in tasks:
-		task_name = task["task"]
-		print task_name, task_args
+	#for task in tasks:
+		#task_name = task["task"]
+		#print task_name, task_args
 		## Here we can filter out the task and move them in the right direction.
 		## For instance if the tasks is to process measurements then, create a new thread and assign it to process the measurements.
-		if task_name == "process_measurements":
-			thread_list.append(threading.Thread(target=process_results, args=((task),)))
+		#if task_name == "process_measurements":
+			#thread_list.append(threading.Thread(target=process_results, args=((task),)))
 			## task_completed(task)
-	for thread in thread_list:
-		thread.start()
+	#for thread in thread_list:
+		#thread.start()
 		## fetch state, build state, fly
 		#Scheduler = Scheduler()
+
+	## Now that the tasks that needed to be done now are done.
+	## We will see which tasks need to be scheduled.
+	## Get all persistent tasks.
+	per_tasks = DB_Handle.query_table("tbl_Routines",None,' "persistent" == "yes"')
+	## Get task which are currently scheduled
+	cur_tasks = DB_Handle.query_table("tbl_Schedule",None,' "completed" == "No" or "no"')
+	## Now we have all the tasks that are persistent and all the tasks that are scheduled.
+	new_tasks = [task for task in per_tasks if task['routine_name'] not in [cur_task['task'] for cur_task in cur_tasks]]
+	## we need to schedule the tasks.
+	for task in new_tasks:
+		schedule_task(str(task['routine_name']),int(time.time() + task['interval']))
 
 ## See what we gotta do.
 def get_tasks():
 	## Get the contents of the table tbl_Schedule and provide the argument: if not completed
-	rows = DB_Handle.get_table("tbl_Schedule",None,'"completed" == "No" or "no"')
+	rows = DB_Handle.query_table("tbl_Schedule",None,'"completed" == "No" or "no"')
 	if not rows:
 		print "There are no incomplete tasks scheduled."
 		return None
@@ -89,18 +101,16 @@ def do_baseline():
 	## stop time
 	stop_time = Processing.measurement_info(measurements[len(measurements)-1])['stop_time'] ## Unix timestamp here
 	## Whether the task is persistent like conducting measurements on a regular basis
-	persistent = "No" # reading measurements is not persistent
-	schedule_task(task,stop_time,str(measurements),persistent)
+	schedule_task(task,stop_time,str(measurements))
 
 ## This method is for testing purposes only.
 def add_task():
 	measurements = [1034087,1034088,1034089] ## temp list of measurements
 	task = "process_measurements"
 	stop_time = Processing.measurement_info(measurements[len(measurements)-1])['stop_time'] ## Unix timestamp here
-	persistent = "No" # reading measurements is not persistent
-	schedule_task(task,stop_time,str(measurements),persistent)
+	schedule_task(task,stop_time,str(measurements))
 
-def schedule_task(task,stop_time,arguments,persistent):
+def schedule_task(task,stop_time,arguments=None):
 ## The task will be stored in the database.
 ## First gather all the information
 	## stop time in a date/time format (for humans)
@@ -111,7 +121,12 @@ def schedule_task(task,stop_time,arguments,persistent):
 	columns = DB_Handle.get_tbl_columns("tbl_Schedule")[1:] ## Exclude the sched_num autonumbered column
 	## Now insert.
 	## A true will be returned if the task was successfully inserted, false if it wasn't.
-	ret = DB_Handle.list_insert("tbl_Schedule",(columns,[task,arguments,date_time,stop_time,persistent,completed]))
+	print columns
+	if not arguments:
+		columns = columns[:1] + columns[2:]
+		ret = DB_Handle.list_insert("tbl_Schedule",(columns,[task,date_time,stop_time,completed]))
+	else:
+		ret = DB_Handle.list_insert("tbl_Schedule",(columns,[task,arguments,date_time,stop_time,completed]))	
 	if ret:
 		print ("Task scheduled.")
 	else:
@@ -135,34 +150,13 @@ def process_results(task):
 			target = header['dst_addr']
 			fail_list, success_list = Processing.failed_succeeded(response,1)
 			columns = DB_Handle.get_tbl_columns("tbl_Measurements")
-			ret = DB_Handle.list_insert("tbl_Measurements",(columns,[str(measurement),str(date),str(target),str(desc),str(success_list)[5:-2],str(fail_list)[5:-2],str((len(success_list)+ len(fail_list)))]))
+			inserts = [str(measurement),str(date),str(target),str(desc),str(success_list)[5:-2],str(fail_list)[5:-2],str((len(success_list)+ len(fail_list)))]
+			ret = DB_Handle.list_insert("tbl_Measurements",(columns,inserts))
 			if ret:
 				print ("Results inserted.")
 				task_completed(task)
 			else:
 				print ("Error inserting results for measurement: "+str(measurement))
-			
-## <- Update the scheduler state here
-# 		Scheduler.Update_Targeted()
-# 		Scheduler.Update_Results()
-
-##Things scheduler will do:
-##	**IPv6 capablility - determine the ability to query IPv6 name servers.
-##	**The output should be probes that were able to perform the baseline measurement in the last 7 days.
-##		*(T) Keep track of probes that have been targeted for measurement in the past 7 days but did not participate in the measurement.
-##		*(R)Keep track of the results of these measurements
-##		*(P)Every four hours retrieve a list of all connected ipv6 probes.
-##		*Remove probes from (P) that have been targeted for measurement more than 5 times in the last 7 days, but dit not participate
-## 		*Remove probes from (P) that have a successful result in R
-##		*Remove probes from (P) that have 5 or more result sets in R (Can't do it.)
-##		*Perform baseline measurement with the remaining probes, process results, update T and R
-##	**Do not remove probes that have been in the list for more than 7 days
-##	*Ipv6 capable resolvers
-##	*DNSSEC capable resolvers
-##	*Determine the resolver used by each probe
-##	*probes with PMTU of 1500
-##	*Probes with PMTU greater than 1280 but less than 1500
-##	*etc..
 
 if __name__ == "__main__":
 	start()
