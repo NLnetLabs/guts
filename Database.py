@@ -20,30 +20,14 @@ def create_db(con):
 	db_spec.append("""
 			create table tbl_Measurements(
 				measurement_id		integer		primary key,
+				network_prop		text,
 				measurement_date	text,
-				Target				text,
-				description			int,
-				successful_probes	blob,
-				unsuccessful_probes	blob,
+				finished  			int,
+				targeted_probes
+				succeeded_probes	blob,
+				failed_probes		blob,
+				incapable_probes	blob,
 				total_probes		int
-			);
-			""")
-	db_spec.append("""
-			create table tbl_Schedule(
-				sched_num			integer		primary key 	autoincrement,
-				task				text,
-				argument			blob,
-				datetime			text,
-				timestamp			int,
-				completed			text
-			);
-			""")
-	db_spec.append("""
-			create table tbl_Schedule_state(
-				pkey				int			primary key,
-				probes_Targeted		blob,
-				msm_Results			blob,
-				probes				blob
 			);
 			""")
 	db_spec.append("""
@@ -53,13 +37,6 @@ def create_db(con):
 				country				text,
 				last_result			text,
 				measurements		blob
-			);
-			""")
-	db_spec.append("""
-			create table tbl_Routines(
-				routine_name		text		primary key,
-				persistent			text,
-				interval			int
 			);
 			""")
 	for x in db_spec:

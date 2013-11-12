@@ -40,23 +40,20 @@ class Scheduler:
 def start():
 	#add_task() ## Testing.
 	## Get scheduled tasks
-	#tasks = get_tasks()
-	#if not tasks:
-		#print "There are no tasks that need to be done now."
-		#return
-	#thread_list = []
-	#for task in tasks:
-		#task_name = task["task"]
-		#print task_name, task_args
+	tasks = get_tasks()
+	if not tasks:
+		print "There are no tasks that need to be done now."
+		return
+	thread_list = []
+	for task in tasks:
+		task_name = task["task"]
+		print task_name, task_args
 		## Here we can filter out the task and move them in the right direction.
 		## For instance if the tasks is to process measurements then, create a new thread and assign it to process the measurements.
-		#if task_name == "process_measurements":
-			#thread_list.append(threading.Thread(target=process_results, args=((task),)))
-			## task_completed(task)
-	#for thread in thread_list:
-		#thread.start()
-		## fetch state, build state, fly
-		#Scheduler = Scheduler()
+		if task_name == "process_measurements":
+			thread_list.append(threading.Thread(target=process_results, args=((task),)))
+	for thread in thread_list:
+		thread.start()
 
 	## Now that the tasks that needed to be done now are done.
 	## We will see which tasks need to be scheduled.

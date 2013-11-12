@@ -10,7 +10,7 @@ import sqlite3
 import Database
 
 ## Return a list containing the id of all ipv6 probes with status 1
-def ret_ipv6_probes():
+def ipv6():
 	try:
 		response = urllib2.urlopen("https://atlas.ripe.net/api/v1/probe/?prefix_v6=::/0&limit=0").read()
 		response = json.loads(response)

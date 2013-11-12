@@ -10,7 +10,7 @@ from Atlas_Query import *
 from urllib2 import Request
 
 ## Return results from the internet
-def get_results(measurement):
+def get_response(measurement):
 	try:
 		response = urllib2.urlopen("https://atlas.ripe.net/api/v1/measurement/"+str(measurement)+"/result/")
 		response = json.load(response)
@@ -34,31 +34,32 @@ def measurement_info(measurement):
 
 ## Given the results of a measurement it will return the id of all probes which succeed
 def failed_succeeded(response,verbose=0):
-	if len(response) >= 1:
-		## Build a list of all that fail and all that succeed, then combine to see which never succeeded
-		fail = set()
-		succeed = set()
-		## In the case of ping, if the avg has a value of -1 then the Host is unreachable(request timed out)
-		fail.update([result['prb_id'] for result in [results for results in response if 'avg' in results and results['avg'] is -1]])
-		succeed.update([result['prb_id'] for result in [results for results in response if 'avg' in results and results['avg'] is not -1]])
-		## In the case of an error, in DNS the 'error' key will be in the main dict
-		fail.update([result['prb_id'] for result in [results for results in response if 'error' in results]])
-		succeed.update([result['prb_id'] for result in [results for results in response if 'error' not in results]])
-		## Look for errors in the result sets contained in the results of each line
-		## Pings and traceroutes will contain errors in their result sets but DNS will not.
-		## Code sauce: Willem Toorop
-		fail.update([results['prb_id'] for results in response if 'result' in result for result in results['result'] if 'error' in result])
-		succeed.update([results['prb_id'] for results in response if 'result' in result for result in results['result'] if 'error' not in result])
-		fail.update([probe for probe in fail if probe not in succeed])
-		if verbose:
-			## print the results
-			print "Of a total:",(len(succeed)+len(fail)),"probes"
-			print "Had :",len(fail),"Failure(s) and :",(len(succeed)),"Successful results"
-		## return the list containing the id of all probes which failed at least once.
-		return fail,succeed
-	else:
-		print "There are no results in that response. It could be that the measurement has not began"
-		return None
+	if type(response) == type(list): 
+		if len(response) >= 1:
+			## Build a list of all that fail and all that succeed, then combine to see which never succeeded
+			fail = set()
+			succeed = set()
+			## In the case of ping, if the avg has a value of -1 then the Host is unreachable(request timed out)
+			fail.update([result['prb_id'] for result in [results for results in response if 'avg' in results and results['avg'] is -1]])
+			succeed.update([result['prb_id'] for result in [results for results in response if 'avg' in results and results['avg'] is not -1]])
+			## In the case of an error, in DNS the 'error' key will be in the main dict
+			fail.update([result['prb_id'] for result in [results for results in response if 'error' in results]])
+			succeed.update([result['prb_id'] for result in [results for results in response if 'error' not in results]])
+			## Look for errors in the result sets contained in the results of each line
+			## Pings and traceroutes will contain errors in their result sets but DNS will not.
+			## Code sauce: Willem Toorop
+			fail.update([results['prb_id'] for results in response if 'result' in result for result in results['result'] if 'error' in result])
+			succeed.update([results['prb_id'] for results in response if 'result' in result for result in results['result'] if 'error' not in result])
+			fail.update([probe for probe in fail if probe not in succeed])
+			if verbose:
+				## print the results
+				print "Of a total:",(len(succeed)+len(fail)),"probes"
+				print "Had :",len(fail),"Failure(s) and :",(len(succeed)),"Successful results"
+			## return the list containing the id of all probes which failed at least once.
+			return fail,succeed
+		else:
+			print "There are no results in that response. It could be that the measurement has not began"
+			return None
 
 ## ~ Consider moving to Probes ~
 ## Will return a list of a all probes involved in a measurement

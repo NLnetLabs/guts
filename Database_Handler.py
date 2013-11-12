@@ -49,7 +49,7 @@ def sanitize_dict(d):
 def get_max(tbl,cols,args=0):
 	cursor = Database.get_con().cursor()
 	## change the query below to match the use of this method.
-	q = "Select max("+str(col[0])+") from "+str(tbl)
+	q = "Select max("+str(cols[0])+") from "+str(tbl)
 	if args and len(cols) == 1:
 		q += " where " + str(args)
 	try:
@@ -123,6 +123,10 @@ def list_update(tbl,updates):
 	except Exception, e:
 		print ("There was an error updating: "+str(e))
 
+## Expecting a table name and a dictionary
+def batch_update(tbl,updates):
+	print updates.values()
+
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
 	d = {}
@@ -146,16 +150,12 @@ def query_table(tbl,cols = None,args = None):
 	columns = get_tbl_columns(tbl)
 	if not args and not cols: ## Specified neither columns nor arguments
 		rows = [dict(zip(columns,  row)) for row in [list(row) for row in cursor.execute('Select * from '+str(tbl)).fetchall()]]
-		#rows = [list(row) for row in cursor.execute('Select * from '+str(tbl)).fetchall()] ## ~depreciated~ list approach.
 	elif cols and not args: ## Specified columns but no argument
 		rows = [dict(zip(cols.split(","),row)) for row in [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)).fetchall()]]
-		#rows = [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)).fetchall()] ## ~depreciated~ list approach.
 	elif args and not cols: ## Specified argument but not columns
 		rows = [dict(zip(columns,  row)) for row in [list(row) for row in cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()]]
-		#rows = [list(row) for row in cursor.execute('Select * from '+str(tbl)+' where '+str(args)).fetchall()] ## ~depreciated~ list approach.
 	else: ## Specified columns and argument
 		rows = [dict(zip(cols.split(","),row)) for row in [list(row) for row in cursor.execute('Select '+( str(cols) )+' from '+str(tbl)+' where '+str(args)).fetchall()]]
-		#rows = cursor.execute('Select '+( str(cols) )+' from '+str(tbl)+' where '+str(args)).fetchall()[0] ## ~depreciated~ list approach.
 	## Close up.
 	Database.get_con().close()
 	cursor.close()
