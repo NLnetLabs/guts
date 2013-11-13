@@ -21,9 +21,9 @@ def create_db(con):
 			create table tbl_Measurements(
 				measurement_id		integer		primary key,
 				network_prop		text,
-				measurement_date	text,
+				timestamp			text,
 				finished  			int,
-				targeted_probes
+				targeted_probes		blob,
 				succeeded_probes	blob,
 				failed_probes		blob,
 				incapable_probes	blob,

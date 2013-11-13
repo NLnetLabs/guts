@@ -124,8 +124,22 @@ def list_update(tbl,updates):
 		print ("There was an error updating: "+str(e))
 
 ## Expecting a table name and a dictionary
-def batch_update(tbl,updates):
-	print updates.values()
+def batch_update(tbl,updates,arg):
+	con = Database.get_con()
+	cursor = con.cursor()
+	for k,v in updates.iteritems():
+		print k,v
+		query = 'Update '+str(tbl)+' set '+ str(k) +' = "'+str(v)+'" where '+str(arg)
+		print query
+		try:
+			cursor.execute(query)
+		except  Exception, e:
+			print ("Error updating "+str(k)+" "+str(e))
+			return False
+	con.commit()
+	cursor.close()
+	con.close()
+	return True
 
 ## Return the table schema as a dict({column name : None})
 def get_tbl_schema(tbl):
