@@ -17,14 +17,14 @@ class Scheduled:
 		busy_probes = DB_Handler.query_table("tbl_Measurements",'targeted',' "finished" != 1')[0]['targeted']
 		busy_probes = str(busy_probes)[1:-1].split(",")
 		return busy_probes
-	def lazy_probes(self): ## Needs to be tested thouroughly
-		## Select probes that did not try in the last 7 days
-		## This will assume that the field targeted probes is filled in.
-		## We will now get the the incapable probes for the last 7 days
+	def lazy_probes(self): ## Needs to be tested.
+		## Select probes that were targeted but did not respond in the last 7 days
 		now = int(time.time())
 		time_period = (int(now) - 7 * 24 * 60 * 60) ## time period of 1 week
 		rows = DB_Handler.query_table("tbl_Measurements",None,' "timestamp" < '+str(now)+' and "timestamp" > '+ str(time_period))
 		targeted_probes = set([int(probe) for probes in [row['targeted_probes'][1:-1].replace(" ","").split(",") for row in rows] for probe in probes])
+		if not targeted_probes:
+			return None
 		responsive_probes = set([probes for probes in [row['succeeded_probes'] for row in rows] + [row['failed_probes'] for row in rows]])
 		lazy_probes = set([ probe for probe in targeted_probes if probe not in responsive_probes])
 		return lazy_probes
