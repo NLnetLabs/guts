@@ -14,7 +14,7 @@ def ipv6():
 	try:
 		response = urllib2.urlopen("https://atlas.ripe.net/api/v1/probe/?prefix_v6=::/0&limit=0").read()
 		response = json.loads(response)
-		probes = [probe['id'] for probe in [probes for probes in response['objects'] if probes['status'] == 1]]
+		probes = set([probe['id'] for probe in [probes for probes in response['objects'] if probes['status'] == 1]])
 		return probes
 	except Exception, e:
 		print ("There was and error:"+e)
