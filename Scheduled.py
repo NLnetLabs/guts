@@ -53,19 +53,28 @@ class Scheduled_IPv6_Capable(Scheduled):
 	def run(self):
 		## routine here
 		p = Probes.ipv6()
-		p = [probe for probe in p if p not in self.busy_probes()]
-		p = [probe for probe in p if p not in self.lazy_probes()]
+		p = [probe for probe in p if p in self.busy_probes()]
+		p = [probe for probe in p if p in self.lazy_probes()]
 		print p
 		## Until I imporve Atlas_Query, this will have to do.
 		## Submit
-		measurement = Atlas_Query.baseline_dns(p)
+		measurements = Atlas_Query.baseline_dns(p)
 		## Temp store targeted probes into the database, this will be done in Atlas_Query
-		cols = ["measurement_id","network_prop","timestamp","finished","targeted_probes"]
-		vals = [str(measurement),self.propety,int(time.time()),0,p]
-		ret = DB_Handler.list_insert("tbl_Measurements",(cols,vals))
-		if ret:
-			print ("Update measurement:"+str(measurement)+" successful")
+		if not measurements:
+			print "No measurements were correctly submitted."
+			return False
+		for measurement in measurements:
+			cols = ["measurement_id","network_prop","timestamp","finished","targeted_probes"]
+			vals = [measurement,self.propety,int(time.time()),0,p]
+			ret = DB_Handler.list_insert("tbl_Measurements",(cols,vals))
+			if ret:
+				print ("Updating measurement:"+str(measurement)+", successful.")
+		return True
 
 if __name__ == "__main__":
 	ipv6sched = Scheduled_IPv6_Capable("ipv6Capable")
-	print ipv6sched.run()
+	ret = ipv6sched.run()
+	if ret:
+		print ("ipv6 Capable run was successful.")
+	else:
+		print ("ipv6 Capable run was unsuccessful.")

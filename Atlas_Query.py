@@ -6,9 +6,10 @@ import os
 import sys
 import time
 import json
-import getpass
+import Probes
+#import getpass
 import urllib2
-import argparse
+#import argparse
 import datetime
 from urllib2 import *
 from urllib2 import Request
@@ -17,13 +18,15 @@ from datetime import date
 
 def get_Key():
 	## to add: Some kind of global config file
-	directory = '/home/'+getpass.getuser()+'/Sec/AtlasKey'
+	## Code source: Willem Toorop
+	directory = ('%s/.atlas/auth' % os.path.expanduser('~'))
+	#directory = '/home/'+getpass.getuser()+'/Sec/AtlasKey'
 	f = open(directory,'r')
 	if not f:
 		print "Aborting. reason: Atlas Key file "+directory+" could not be found."
 		print "please specify the directory"
 		sys.exit(0)
-	key = f.readline()
+	key = f.readline().replace("\n","")
 	if not (len(key) > 35):
 		print 'Aborting. reason: Key could not be found in file'
 		sys.exit(0)
@@ -43,27 +46,28 @@ def ret_chunks(lis,num):
 	for i in xrange(0, len(lis), num):
 		yield lis[i:i+num]
 
-def baseline_dns(target="2001:7b8:206:1::1",probe_list=None):
+def baseline_dns(probe_list=None,target="2001:7b8:206:1::1"):
 	if not probe_list:
-		probe_list = probes_ipv6()
+		probe_list = Probes.ipv6()
 	measurements = []
 	probe_string = ""
 	chunks = ret_chunks(probe_list,499)
-	skeleton = Atlas_Query.get_type('dns')
-	skeleton = Atlas_Query.get_probes(skeleton, 1)
+	skeleton = get_type('dns')
+	skeleton = get_probes(skeleton, 1)
 	defaults = {"target" : target, "type": "dns", "af":6, "description": "ipv6 baseline", "is_oneoff": True}
 	defaults.update({'udp_payload_size':512,"interval":None, "use_probe_resolver":False, "query_type":"AAAA"})
 	defaults.update({"query_argument": "www.nlnetlabs.nl", "query_class": "IN", "is_public":True})
 	for chunk in chunks:
 		probe_string = ','.join(map(str, chunk))
 		probe_que = [{"requested": len(chunk), "type": "probes", "value":probe_string}]
-		Query = Atlas_Query.ext_Query_Builder(skeleton, [defs,probe_que])
-		Query.update(Atlas_Query.get_Time(1200))
-		measurement = Atlas_Query.send_Query(Query)
+		Query = ext_Query_Builder(skeleton, [defaults,probe_que])
+		#Query.update(get_Time(1200))
+		print Query
+		measurement = send_Query(Query)
 		if measurement:
 			print "Measurement:",measurement
 			measurements.append(measurement)
-			Atlas_Query.write_Measurement(measurement,'dns baseline')
+			#Atlas_Query.write_Measurement(measurement,'dns baseline')
 	if measurements:
 		return measurements
 	else:
@@ -119,7 +123,7 @@ def send_Query(Query):
 	key = get_Key()
 	req = get_Req(key)
 	try:
-		conn = urllib2.urlopen(req, json.dumps(Query))## conn missleading name, might be confused with a db connection
+		conn = urllib2.urlopen(req, json.dumps(Query))
 		 ## If no waiting time is given, queries might fail in succession of one another.
 		 ## Learned the hard way...
 		 ## Now for a very loose quote:
