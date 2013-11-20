@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#Author Warwick Louw
 
 import os
 import sqlite3
@@ -18,25 +17,26 @@ def create_db(con):
 	cursor = con.cursor()
 	db_spec = []
 	db_spec.append("""
-			create table tbl_Measurements(
+			create table tbl_Scheduled(
 				measurement_id		integer		primary key,
-				network_prop		text,
-				timestamp			text,
+				network_propety		text,
+				submitted			int,
 				finished  			int,
-				targeted_probes		blob,
-				succeeded_probes	blob,
-				failed_probes		blob,
-				incapable_probes	blob,
-				total_probes		int
+				json				blob
 			);
 			""")
 	db_spec.append("""
-			create table tbl_Probes(
-				probe_id			int			primary key,
-				status				int,
-				country				text,
-				last_result			text,
-				measurements		blob
+			create table tbl_Targeted(
+				measurement_id		int,
+				probe_id			int
+			);
+			""")
+	db_spec.append("""
+			create table tbl_Results(
+				measurement_id		int,
+				probe_id			int,
+				good				int,
+				json				blob
 			);
 			""")
 	for x in db_spec:

@@ -11,36 +11,82 @@ import Database_Handler as DB_Handler
 class Scheduled:
 	def __init__(self,prop):
 		self.propety = prop
-	#def submit(self,query,probes): ## This is where Atlas query comes in. Maybe improve Atlas_Query
-	def busy_probes(self): ## Needs to be tested.
-		## (returned as a list of dictionaries)
+
+	def busy_probes(self):
 		cursor = Database.get_con().cursor()
-		rows = cursor.execute('Select "targeted_probes" from tbl_Measurements where "finished" = 0 and "network_prop" = "'+str(self.propety)+'"').fetchall()
+		now = int(time.time())
+		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """ SELECT probe_id FROM tbl_Scheduled,tbl_Targeted
+				WHERE tbl_Scheduled.submitted > {}
+				AND tbl_Scheduled.finished = "None"
+				AND tbl_Scheduled.network_propety = '{}'
+				AND tbl_Scheduled.measurement_id = tbl_Targeted.measurement_id
+			""".format(time_period,self.propety)
+		rows = cursor.execute(q).fetchall()
 		if not rows:
+			print("No busy probes")
 			return set([])
 		else:
-			busy_probes = set([int(probe) for probes in [row[0][1:-1].replace(" ","").split(",") for row in rows] for probe in probes])
-			print busy_probes
+			busy_probes = set([probe[0] for probe in rows])
 			return busy_probes
-	def lazy_probes(self):
+
+	def lazy_probes(self): ## This needs testing because it relies on processed data.
 		## Select probes that were targeted but did not respond in the last 7 days
 		cursor = Database.get_con().cursor()
 		now = int(time.time())
-		time_period = (int(now) - 7 * 24 * 60 * 60) ## time period of 1 week
-		rows = cursor.execute('Select "targeted_probes","succeeded_probes","failed_probes" from tbl_Measurements where "timestamp" < '+str(now)+' and "timestamp" > '+ str(time_period)).fetchall()
-		targeted_probes = set([int(probe) for probes in [row[0][1:-1].replace(" ","").split(",") for row in rows] for probe in probes])
-		if not targeted_probes:
-			return set([]) ## cannot subtract a None from a list**
-		responsive_probes = set([probes for probes in [row[1] for row in rows] + [row[2] for row in rows]])
-		lazy_probes = set([ probe for probe in targeted_probes if probe not in responsive_probes])
-		return lazy_probes
+		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """ SELECT tbl_Targeted.probe_id FROM tbl_Targeted, tbl_Scheduled, tbl_Results
+				WHERE tbl_Scheduled.submitted > {}
+				AND tbl_Scheduled.network_propety = "{}"
+				AND tbl_Targeted.probe_id = tbl_Results.probe_id
+				AND tbl_Targeted.measurement_id = tbl_Results.measurement_id
+				AND tbl_Results.good = 1
+			""".format(time_period,self.propety)
+		rows = cursor.execute(q).fetchall()
+		if not rows:
+			print("No lazy probes")
+			return set([])
+		else:
+			lazy_probes = set([probe[0] for probe in rows])
+			return lazy_probes
+
+	def run(self):
+		self.measure()
+		#self.process()
 
 class Scheduled_IPv6_Capable(Scheduled):
+
 	def __init__(self,propety):
 		Scheduled.__init__(self,propety)
-	def process_results(self,measurements):
-		## This will assume that the field targeted has already been filled in.
-		## With that said, let's get some results.
+
+	def measure(self):
+		## routine here
+		## (Thanks Willem Toorop)
+		p = Probes.ipv6()
+		p -= self.busy_probes()
+		p -= self.lazy_probes()
+		measurements = Atlas_Query.baseline_dns(p)
+		#if not measurements:
+			#print "No measurements were correctly submitted."
+			#return False
+		#con = Database.get_con()
+		#cursor = con.cursor()
+		#for measurement in measurements:
+			#q = """
+				#""".format()
+			#try:
+				#cursor.execute(q)
+			#except Exception,e:
+				#print (e)
+				#con.close()
+				#return
+		#con.commit()
+		#con.close()
+		#print ("measurement: {} successfully updated.".format(measurement))
+		#return True
+
+	def process(self):	## rewrite in progress
+		## Get all measurement ids that are less than a week old and are ready to process.
 		for measurement in measurements:
 			## Get results from the web
 			response = Processing.get_response(measurement)
@@ -53,40 +99,16 @@ class Scheduled_IPv6_Capable(Scheduled):
 			ret = DB_Handler.batch_update("tbl_Measurements",updates,' "measurement_id" == '+str(measurement))
 			if ret:
 				print ("Update measurement:"+str(measurement)+" successful")
-	def run(self):
-		## routine here
-		## (Thanks Willem Toorop)
-		p = Probes.ipv6()
-		p -= self.busy_probes()
-		p -= self.lazy_probes()
-		## Until I imporve Atlas_Query, this will have to do.
-		## Submit
-		measurements = Atlas_Query.baseline_dns(p)
-		## Temp store targeted probes into the database, this will be done in Atlas_Query
-		if not measurements:
-			print "No measurements were correctly submitted."
-			return False
-		con = Database.get_con()
-		cursor = con.cursor()
-		for measurement in measurements:
-			q =  'insert into tbl_Measurements("measurement_id","network_prop","timestamp","finished","targeted_probes")' 
-			q += 'Values('+measurement+','+self.propety+','+int(time.time())+','+0+','+p+')'
-			try:
-				cursor.execute(q)
-			except Exception,e:
-				print (e)
-				con.close()
-				return
-		con.commit()
-		con.close()
-		print ("Updating measurement:"+str(measurement)+", successful.")
-		return True
 
 if __name__ == "__main__":
-	ipv6sched = Scheduled_IPv6_Capable("ipv6Capable")
-	#ipv6sched.process_results()
-	ret = ipv6sched.run()
-	if ret:
-		print ("ipv6 Capable run was successful.")
-	else:
-		print ("ipv6 Capable run was unsuccessful.")
+	## List of network propeties
+	net_props = ["ipv6Capable"]
+	for prop in net_props:
+		if prop == "ipv6Capable":
+			sch = Scheduled_IPv6_Capable(prop)
+		try:
+			sch.run()
+		except Exception,e:
+			print ("There was and error: {}".format(e))
+			pass
+	print("fin.")
