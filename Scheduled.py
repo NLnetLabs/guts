@@ -1,11 +1,10 @@
 ## Timeless Scheduler
 
-import time
-import atlas
 import Probes
 import Database
 import Processing
 import Database_Handler as DB_Handler
+from atlas import *
 
 class Scheduled:
 	def __init__(self,prop):
@@ -13,14 +12,14 @@ class Scheduled:
 
 	def busy_probes(self):
 		cursor = Database.get_con().cursor()
-		now = int(time.time())
-		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		now = time()
+		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
 		q = """ SELECT probe_id FROM Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.finished = "None"
 				AND Measurements.network_propety = '{prop}'
 				AND Measurements.measurement_id = Targeted.measurement_id
-			""".format(week = time_period,prop = self.propety)
+			""".format(week = int(time_period),prop = self.propety)
 		rows = cursor.execute(q).fetchall()
 
 		if not rows:
@@ -33,8 +32,8 @@ class Scheduled:
 	def lazy_probes(self): ## This needs testing because it relies on processed data.
 		## Select probes that were targeted but did not respond in the last 7 days
 		cursor = Database.get_con().cursor()
-		now = int(time.time())
-		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		now = time()
+		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
 		q = """ SELECT Targeted.probe_id FROM Targeted, Measurements
 				WHERE Measurements.submitted > {week}
@@ -45,7 +44,7 @@ class Scheduled:
 				AND Measurements.network_prop = '{prop}')
 				GROUP BY Targeted.probe_id
 				HAVING COUNT(Targeted.probe_id) > {appr}
-			""".format(week = time_period, prop = self.propety, appr = appearance)
+			""".format(week = int(time_period), prop = self.propety, appr = appearance)
 		rows = cursor.execute(q).fetchall()
 		if not rows:
 			print("No lazy probes")
@@ -56,15 +55,15 @@ class Scheduled:
 
 	def done_probes(self):
 		cursor = Database.get_con().cursor()
-		now = int(time.time())
-		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		now = time()
+		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
 		q = """ SELECT Results.probe_id FROM Results, Measurements
 				WHERE Measurements.submitted > {week}
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Results.probe_id
 				HAVING COUNT(*) > {appr}
-			""".format(week = time_period, prop = self.propety, appr = appearance)
+			""".format(week = int(time_period), prop = self.propety, appr = appearance)
 		rows = cursor.execute(q).fetchall()
 		if not rows:
 			print("No finished probes")
@@ -84,11 +83,10 @@ class Scheduled_IPv6_Capable(Scheduled):
 
 	def measure(self):
 		## routine here
-		p = Probes.ipv6()
+		p = set([probe['id'] for probe in list(atlas.probe(prefix_v6 = '::/0', limit = 0))]) ## Dealing with the generator
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
-
 		probes = list(p) ## Convert to list to be used in atlas		
 		defs = atlas.dns6('nl','AAA','2001:7b8:40:1:d0e1::1')
 		response = atlas.create(defs,probes)
@@ -114,10 +112,10 @@ class Scheduled_IPv6_Capable(Scheduled):
 		#return True
 
 	def process(self):	## rewrite in progress
-		pass
 		## Get all measurement ids that are less than a week old and are ready to process.
 		cursor = Database.get_con().cursor()
-		time_period = (int(time.time()) - 7 * 24 * 60 * 60) ## 1 week ago
+		now = int(time())
+		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
 		q = """ SELECT measurement_id FROM Measurements
 				WHERE submitted > {week}
 				AND network_propety = '{prop}'
@@ -128,8 +126,11 @@ class Scheduled_IPv6_Capable(Scheduled):
 			print("There are no measurements to process")
 			return True
 		measurements = set([measurement[0] for measurement in rows])
+		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		measurements = [x for y in [[measurement['msm_id'] for measurement in list(atlas.measurement(measurement)) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
-			print atlas.measurement(measurement)
+			response = list(atlas.result(measurement))
+			print response
 			#response = Processing.get_response(measurement)
 			## Determine which probes failed and which succeeded
 			#failed_probes, succeeded_probes = Processing.failed_succeeded(response)
@@ -143,13 +144,16 @@ class Scheduled_IPv6_Capable(Scheduled):
 
 if __name__ == "__main__":
 	## List of network propeties
-	net_props = ["ipv6Capable"]
-	for prop in net_props:
-		if prop == "ipv6Capable":
-			sch = Scheduled_IPv6_Capable(prop)
-		try:
-			sch.run()
-		except Exception,e:
-			print ("There was and error: {}".format(e))
-			pass
-	print("fin.")
+	## testing purposes
+	sch = Scheduled_IPv6_Capable("ipv6Capable")
+	sch.run()
+	#net_props = ["ipv6Capable"]
+	#for prop in net_props:
+		#if prop == "ipv6Capable":
+			#sch = Scheduled_IPv6_Capable(prop)
+		#try:
+			#sch.run()
+		#except Exception,e:
+			#print ("There was and error: {}".format(e))
+			#pass
+	#print("fin.")
