@@ -17,7 +17,7 @@ def create_db(con):
 	cursor = con.cursor()
 	db_spec = []
 	db_spec.append("""
-			create table tbl_Scheduled(
+			create table Measurements(
 				measurement_id		integer		primary key,
 				network_propety		text,
 				submitted			int,
@@ -26,13 +26,13 @@ def create_db(con):
 			);
 			""")
 	db_spec.append("""
-			create table tbl_Targeted(
+			create table Targeted(
 				measurement_id		int,
 				probe_id			int
 			);
 			""")
 	db_spec.append("""
-			create table tbl_Results(
+			create table Results(
 				measurement_id		int,
 				probe_id			int,
 				good				int,
