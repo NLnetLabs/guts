@@ -74,8 +74,8 @@ class Scheduled:
 		return done_probes
 
 	def run(self):
-		self.measure()
-		#self.process()
+		#self.measure()
+		self.process()
 
 class Scheduled_IPv6_Capable(Scheduled):
 
@@ -116,8 +116,20 @@ class Scheduled_IPv6_Capable(Scheduled):
 	def process(self):	## rewrite in progress
 		pass
 		## Get all measurement ids that are less than a week old and are ready to process.
-		#for measurement in measurements:
-			## Get results from the web
+		cursor = Database.get_con().cursor()
+		time_period = (int(time.time()) - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """ SELECT measurement_id FROM Measurements
+				WHERE submitted > {week}
+				AND network_propety = '{prop}'
+				AND finished = "None"
+			""".format(week = time_period, prop = self.propety)
+		rows = cursor.execute(q).fetchall()
+		if not rows:
+			print("There are no measurements to process")
+			return True
+		measurements = set([measurement[0] for measurement in rows])
+		for measurement in measurements:
+			print atlas.measurement(measurement)
 			#response = Processing.get_response(measurement)
 			## Determine which probes failed and which succeeded
 			#failed_probes, succeeded_probes = Processing.failed_succeeded(response)
