@@ -113,7 +113,8 @@ class Scheduled_IPv6_Capable(Scheduled):
 
 	def process(self):	## rewrite in progress
 		## Get all measurement ids that are less than a week old and are ready to process.
-		cursor = Database.get_con().cursor()
+		con = Database.get_con()
+		cursor = con.cursor()
 		now = int(time())
 		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
 		q = """ SELECT measurement_id FROM Measurements
@@ -124,23 +125,25 @@ class Scheduled_IPv6_Capable(Scheduled):
 		rows = cursor.execute(q).fetchall()
 		if not rows:
 			print("There are no measurements to process")
-			return True
+			return
 		measurements = set([measurement[0] for measurement in rows])
 		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in list(atlas.measurement(measurement)) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
-			response = list(atlas.result(measurement))
-			print response
-			#response = Processing.get_response(measurement)
-			## Determine which probes failed and which succeeded
-			#failed_probes, succeeded_probes = Processing.failed_succeeded(response)
-			## Get the targeted probes from the database (returned as a list of dictionaries)
-			#targeted_probes = DB_Handler.query_table("tbl_Measurements",'"Targeted"',' "measurement_id" == '+str(measurement))
-			#incapable_probes = [probe for probe in targeted_probes.split(",") if probe not in failed_probes and probe not in succeeded_probes]
-			#updates = {"failed":failed_probes,"suceeded":succeeded_probes,"incapable":incapable_probes}
-			#ret = DB_Handler.batch_update("tbl_Measurements",updates,' "measurement_id" == '+str(measurement))
-			#if ret:
-				#print ("Update measurement:"+str(measurement)+" successful")
+			response = [x for y in list(atlas.result(measurement)) for x in y]
+			for result in response:
+				probe_id = result['ID']
+				## This only works for DNS.
+				err = result.get('error',None)
+				if err:
+					good = 0
+				else:
+					good = 1
+				q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,result)
+				cursor.execute(q)
+		con.commit()
+		print("Result processed")
+		return
 
 if __name__ == "__main__":
 	## List of network propeties
