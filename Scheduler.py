@@ -9,7 +9,7 @@ class Scheduler:
 		pass
 
 	def probes(self): ## for now, no args.
-		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0)]) ## Dealing with the generator
+		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0)])
 		return p
 
 	def busy_probes(self):
@@ -104,7 +104,7 @@ class Scheduler_IPv6_Capable(Scheduler):
 		cursor = con.cursor()
 		for measurement in measurements:
 			q = """ INSERT INTO Measurements(measurement_id,network_propety,submit,finished)
-					VALUES({msm},"{prop}",{now},"None")
+					VALUES({msm},"{prop}",{now},0)
 				""".format(measurement,self.get_propety_name(),now)
 			try:
 				cursor.execute(q)
@@ -113,10 +113,10 @@ class Scheduler_IPv6_Capable(Scheduler):
 					try:
 						cursor.execute(pq)
 					except Exception,e:
-						print("Error inserting probe {} into Targeted.".format(probe))
+						print("Error inserting probe: {}, reason: {}.".format(probe,e))
 				print ("measurement: {} successfully inserted.".format(measurement))
 			except Exception,e:
-				print ("Error inserting measurement {}, reasone: {}".format(measurement,e))
+				print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 		con.commit()
 		con.close()
 		return
@@ -139,7 +139,8 @@ class Scheduler_IPv6_Capable(Scheduler):
 		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in list(atlas.measurement(measurement)) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
-			response = [x for y in list(atlas.result(measurement)) for x in y]
+			response = [x for y in atlas.result(measurement) for x in y]
+			measurement_header = [x for y in atlas.measurement(measurement) for x in y]
 			for result in response:
 				probe_id = result['prb_id']
 				## This only works for DNS.
@@ -148,7 +149,7 @@ class Scheduler_IPv6_Capable(Scheduler):
 				q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
 				print q
 				cursor.execute(q)
-			q = "UPDATE Measurements SET finished = 1 WHERE measurement_id = {}".format(measurement)
+			q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
 			print q
 			cursor.execute(q)
 		con.commit()
