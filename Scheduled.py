@@ -12,8 +12,7 @@ class Scheduled:
 
 	def busy_probes(self):
 		cursor = Database.get_con().cursor()
-		now = time()
-		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		q = """ SELECT probe_id FROM Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.finished = "None"
@@ -32,8 +31,7 @@ class Scheduled:
 	def lazy_probes(self): ## This needs testing because it relies on processed data.
 		## Select probes that were targeted but did not respond in the last 7 days
 		cursor = Database.get_con().cursor()
-		now = time()
-		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
 		q = """ SELECT Targeted.probe_id FROM Targeted, Measurements
 				WHERE Measurements.submitted > {week}
@@ -55,8 +53,7 @@ class Scheduled:
 
 	def done_probes(self):
 		cursor = Database.get_con().cursor()
-		now = time()
-		time_period = (now - 7 * 24 * 60 * 60) ## 1 week ago
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
 		q = """ SELECT Results.probe_id FROM Results, Measurements
 				WHERE Measurements.submitted > {week}
@@ -82,7 +79,6 @@ class Scheduled_IPv6_Capable(Scheduled):
 		Scheduled.__init__(self,propety)
 
 	def measure(self):
-		## routine here
 		p = set([probe['id'] for probe in list(atlas.probe(prefix_v6 = '::/0', limit = 0))]) ## Dealing with the generator
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
@@ -115,8 +111,7 @@ class Scheduled_IPv6_Capable(Scheduled):
 		## Get all measurement ids that are less than a week old and are ready to process.
 		con = Database.get_con()
 		cursor = con.cursor()
-		now = int(time())
-		time_period = (int(now) - 7 * 24 * 60 * 60) ## 1 week ago
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		q = """ SELECT measurement_id FROM Measurements
 				WHERE submitted > {week}
 				AND network_propety = '{prop}'
@@ -134,11 +129,8 @@ class Scheduled_IPv6_Capable(Scheduled):
 			for result in response:
 				probe_id = result['ID']
 				## This only works for DNS.
-				err = result.get('error',None)
-				if err:
-					good = 0
-				else:
-					good = 1
+				good = 0 if result.get('error',None) else 1
+				## Later add a check to validate the answer.
 				q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,result)
 				cursor.execute(q)
 		con.commit()
