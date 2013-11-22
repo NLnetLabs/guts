@@ -1,14 +1,15 @@
 ## Timeless Scheduler
 
-import Probes
 import Database
-import Processing
-import Database_Handler as DB_Handler
 from atlas import *
 
 class Scheduled:
 	def __init__(self,prop):
 		self.propety = prop
+
+	def probes(): ## for now, no args.
+		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0)]) ## Dealing with the generator
+		return p
 
 	def busy_probes(self):
 		cursor = Database.get_con().cursor()
@@ -36,9 +37,11 @@ class Scheduled:
 		q = """ SELECT Targeted.probe_id FROM Targeted, Measurements
 				WHERE Measurements.submitted > {week}
 				AND Measurements.network_propety = '{prop}'
+				AND Measurements.measurement_id = Results.measurement_id
 				AND Targeted.probe_id NOT IN
 				(SELECT Results.probe_id from Results, Measurements
 				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_prop = '{prop}')
 				GROUP BY Targeted.probe_id
 				HAVING COUNT(Targeted.probe_id) > {appr}
@@ -54,9 +57,10 @@ class Scheduled:
 	def done_probes(self):
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
-		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
+		appearance = 5 ## The number of times a probe should appear in results for the last week
 		q = """ SELECT Results.probe_id FROM Results, Measurements
 				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Results.probe_id
 				HAVING COUNT(*) > {appr}
@@ -79,12 +83,12 @@ class Scheduled_IPv6_Capable(Scheduled):
 		Scheduled.__init__(self,propety)
 
 	def measure(self):
-		p = set([probe['id'] for probe in list(atlas.probe(prefix_v6 = '::/0', limit = 0))]) ## Dealing with the generator
+		p = self.probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes()
-		probes = list(p) ## Convert to list to be used in atlas		
+		p -= self.done_probes()	
 		defs = atlas.dns6('nl','AAA','2001:7b8:40:1:d0e1::1')
+		probes = list(p) ## Convert to list to be used in atlas
 		response = atlas.create(defs,probes)
 		print response
 		## rewrite in progress
@@ -107,7 +111,7 @@ class Scheduled_IPv6_Capable(Scheduled):
 		#print ("measurement: {} successfully updated.".format(measurement))
 		#return True
 
-	def process(self):	## rewrite in progress
+	def process(self):
 		## Get all measurement ids that are less than a week old and are ready to process.
 		con = Database.get_con()
 		cursor = con.cursor()
@@ -133,7 +137,9 @@ class Scheduled_IPv6_Capable(Scheduled):
 				## Later add a check to validate the answer.
 				q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,result)
 				cursor.execute(q)
-		con.commit()
+				q = "UPDATE Measurements SET finished = 1 WHERE measurement_id = {}".format(measurement)
+				cursor.execute(q)
+		#con.commit()
 		print("Result processed")
 		return
 
