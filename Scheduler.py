@@ -8,8 +8,12 @@ class Scheduler:
 	def __init__(self):
 		pass
 
+	def chunker(self,lis,num): ## A long list and the size of the chunks
+		for i in xrange(0, len(lis), num):
+			yield lis[i:i+num]
+
 	def probes(self): ## for now, no args.
-		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0)])
+		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1])
 		return p
 
 	def busy_probes(self):
@@ -88,35 +92,37 @@ class Scheduler_IPv6_Capable(Scheduler):
 		return self.propety_name
 
 	def measure(self):
+		## Get database connection
+		con = Database.get_con()
+		cursor = con.cursor()
 		p = self.probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
-		defs = atlas.dns6('nl','AAAA','2001:7b8:40:1:d0e1::1')
+		defs = dns6('nl','AAAA','2001:7b8:40:1:d0e1::1')
 		probes = list(p) ## Convert to list to be used in atlas
-		response = atlas.create(defs,probes)
-		measurements = response['measurements']
-		if not measurements:
-			print "No measurements were correctly submitted."
-			return
-		now = int(time())
-		con = Database.get_con()
-		cursor = con.cursor()
-		for measurement in measurements:
-			q = """ INSERT INTO Measurements(measurement_id,network_propety,submit,finished)
-					VALUES({msm},"{prop}",{now},0)
-				""".format(measurement,self.get_propety_name(),now)
-			try:
-				cursor.execute(q)
-				for probe in probes:
-					pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-					try:
-						cursor.execute(pq)
-					except Exception,e:
-						print("Error inserting probe: {}, reason: {}.".format(probe,e))
-				print ("measurement: {} successfully inserted.".format(measurement))
-			except Exception,e:
-				print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+		## Need to handle chunks here.
+		for chunk in self.chunker(probes,500):
+			response = atlas.create(defs,chunk)
+			measurements = response['measurements']
+			if not measurements:
+				print("No measurements were correctly submitted.")
+				return
+			for measurement in measurements:
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				try:
+					cursor.execute(q)
+					print ("measurement: {} successfully inserted.".format(measurement))
+					for probe in chunk:
+						pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+						try:
+							cursor.execute(pq)
+						except Exception,e:
+							print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				except Exception,e:
+					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 		con.commit()
 		con.close()
 		return
@@ -137,7 +143,7 @@ class Scheduler_IPv6_Capable(Scheduler):
 			return
 		measurements = set([measurement[0] for measurement in rows])
 		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
-		measurements = [x for y in [[measurement['msm_id'] for measurement in list(atlas.measurement(measurement)) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
+		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			response = [x for y in atlas.result(measurement) for x in y]
 			measurement_header = [x for y in atlas.measurement(measurement) for x in y]
