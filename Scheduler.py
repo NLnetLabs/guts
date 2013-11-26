@@ -81,7 +81,7 @@ class Scheduler:
 		return done_probes
 
 	def run(self):
-		#self.measure()
+		self.measure()
 		self.process()
 
 class Scheduler_IPv6_Capable(Scheduler):
@@ -108,7 +108,7 @@ class Scheduler_IPv6_Capable(Scheduler):
 			response = atlas.create(defs,chunk)
 			measurements = response['measurements']
 			if not measurements:
-				print("No measurements were correctly submitted.")
+				print("This measurement was not correctly submitted.")
 				return
 			for measurement in measurements:
 				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
@@ -165,10 +165,51 @@ class Scheduler_IPv6_Capable(Scheduler):
 		print("Results processed")
 		return
 
+class Scheduler_IPv6_Capable_Resolver(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
+	def measure(self):
+		## Get all probes which have succesfully completed ipv6Capability.
+		## I.E. all done IPv6 Capable probes.
+		probes = Scheduler_IPv6_Capable("IPv6_Capable").done_probes()
+
+class Scheduler_DNSSEC_resolver(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
+class Scheduler_MTU_1280(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
+class Scheduler_MTU_1500(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
 if __name__ == "__main__":
 	## List of network propeties
-	## testing purposes
-	sch = Scheduler_IPv6_Capable("ipv6Capable")
+	## testing purposes, we will not be running MTU_1280 just yet.
+	sch = Scheduler_IPv6_Capable("IPv6_Capable")
 	sch.run()
 	#net_props = ["ipv6Capable"]
 	#for prop in net_props:
