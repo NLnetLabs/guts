@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 ## Timeless Scheduler
 
+import dpkt
+import base64
 import Database
 from atlas import *
 
@@ -79,7 +81,7 @@ class Scheduler:
 		return done_probes
 
 	def run(self):
-		self.measure()
+		#self.measure()
 		self.process()
 
 class Scheduler_IPv6_Capable(Scheduler):
@@ -135,8 +137,8 @@ class Scheduler_IPv6_Capable(Scheduler):
 		q = """ SELECT measurement_id FROM Measurements
 				WHERE submitted > {week}
 				AND network_propety = '{prop}'
-				AND finished = "None"
-			""".format(week = time_period, prop = self.get_propety_name())
+				AND finished = 0
+			""".format(week = int(time_period), prop = self.get_propety_name())
 		rows = cursor.execute(q).fetchall()
 		if not rows:
 			print("There are no measurements to process")
@@ -151,12 +153,13 @@ class Scheduler_IPv6_Capable(Scheduler):
 				probe_id = result['prb_id']
 				## This only works for DNS.
 				good = 0 if result.get('error',None) else 1
-				## Later add a check to validate the answer.
+				## When checking the answer from DNS we exclude those that do not have an answer.
+				if good:
+					dns = dpkt.dns.DNS(base64.b64decode(result['result']['abuf']))
+					good = 0 if (len(dns.an) == 0) else 1
 				q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
-				print q
 				cursor.execute(q)
 			q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
-			print q
 			cursor.execute(q)
 		con.commit()
 		print("Results processed")
