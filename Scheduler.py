@@ -29,11 +29,12 @@ class Scheduler:
 			""".format(week = int(time_period),prop = self.get_propety_name())
 		rows = cursor.execute(q).fetchall()
 
-		if not rows:
-			print ("No busy probes")
-			return set([])
+		if rows:
+			busy_probes = set([probe[0] for probe in rows])
+		else:
+			busy_probes = set([])
 
-		busy_probes = set([probe[0] for probe in rows])
+		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(busy_probes)))
 		return busy_probes
 
 	def lazy_probes(self): ## This needs testing because it relies on processed data.
@@ -54,11 +55,13 @@ class Scheduler:
 				HAVING COUNT(Targeted.probe_id) > {appr}
 			""".format(week = int(time_period), prop = self.get_propety_name(), appr = appearance)
 		rows = cursor.execute(q).fetchall()
-		if not rows:
-			print("No lazy probes")
-			return set([])
 
-		lazy_probes = set([probe[0] for probe in rows])
+		if rows:
+			lazy_probes = set([probe[0] for probe in rows])
+		else:
+			lazy_probes = set([])
+
+		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(busy_probes)))
 		return lazy_probes
 
 	def done_probes(self):
@@ -73,11 +76,13 @@ class Scheduler:
 				HAVING COUNT(*) > {appr}
 			""".format(week = int(time_period), prop = self.get_propety_name(), appr = appearance)
 		rows = cursor.execute(q).fetchall()
-		if not rows:
-			print("No finished probes")
-			return set([])
 
-		done_probes = set([probe[0] for probe in rows])
+		if rows:
+			done_probes = set([probe[0] for probe in rows])
+		else:
+			done_probes = set([])
+
+		print ("{}: done_probes: {}".format(self.get_propety_name(),len(busy_probes)))
 		return done_probes
 
 	def run(self):
