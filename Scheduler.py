@@ -61,7 +61,7 @@ class Scheduler:
 		else:
 			lazy_probes = set([])
 
-		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(busy_probes)))
+		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(lazy_probes)))
 		return lazy_probes
 
 	def done_probes(self):
@@ -82,14 +82,14 @@ class Scheduler:
 		else:
 			done_probes = set([])
 
-		print ("{}: done_probes: {}".format(self.get_propety_name(),len(busy_probes)))
+		print ("{}: done_probes: {}".format(self.get_propety_name(),len(done_probes)))
 		return done_probes
 
 	def run(self):
 		self.measure()
 		self.process()
 
-class Scheduler_IPv6_Capable(Scheduler):
+class Scheduler_IPv6_dns_Capable(Scheduler):
 
 	def __init__(self,propety):
 		self.propety_name = propety
@@ -160,14 +160,91 @@ class Scheduler_IPv6_Capable(Scheduler):
 				good = 0 if result.get('error',None) else 1
 				## When checking the answer from DNS we exclude those that do not have an answer.
 				if good:
-					dns = dpkt.dns.DNS(base64.b64decode(result['result']['abuf']))
-					good = 0 if (len(dns.an) == 0) else 1
+					## Since the query has returned a result we will now check that result.
+					good = 0 if (result['ANCOUNT'] == 0) else 1
 				q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
 				cursor.execute(q)
 			q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
 			cursor.execute(q)
+			print("Results processed")
 		con.commit()
-		print("Results processed")
+		return
+
+class Scheduler_IPv6_ping_Capable(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
+	def measure(self):
+		## Get database connection
+		con = Database.get_con()
+		cursor = con.cursor()
+		p = self.probes()
+		p -= self.busy_probes()
+		p -= self.lazy_probes()
+		p -= self.done_probes()
+		defs = ping6('2001:7b8:40:1:d0e1::1')
+		probes = list(p) ## Convert to list to be used in atlas
+		## Need to handle chunks here.
+		for chunk in self.chunker(probes,500):
+			response = atlas.create(defs,chunk)
+			measurements = response['measurements']
+			if not measurements:
+				print("This measurement was not correctly submitted.")
+				return
+			for measurement in measurements:
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				try:
+					cursor.execute(q)
+					print ("measurement: {} successfully inserted.".format(measurement))
+					for probe in chunk:
+						pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+						try:
+							cursor.execute(pq)
+						except Exception,e:
+							print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				except Exception,e:
+					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+		con.commit()
+		con.close()
+		return
+
+	def process(self):
+		## Get all measurement ids that are less than a week old and are ready to process.
+		con = Database.get_con()
+		cursor = con.cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """ SELECT measurement_id FROM Measurements
+				WHERE submitted > {week}
+				AND network_propety = '{prop}'
+				AND finished = 0
+			""".format(week = int(time_period), prop = self.get_propety_name())
+		rows = cursor.execute(q).fetchall()
+		if not rows:
+			print("There are no measurements to process")
+			return
+		measurements = set([measurement[0] for measurement in rows])
+		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
+		for measurement in measurements:
+			response = [x for y in atlas.result(measurement) for x in y]
+			measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+			for result in response:
+				probe_id = result['prb_id']
+				## Looking for "error" in result.(This will also work for traceroute)
+				good = 0 if result['result'].get('error',None) else 1
+				q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+				cursor.execute(q)
+			q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+			cursor.execute(q)
+			print("Results processed")
+		con.commit()
 		return
 
 class Scheduler_IPv6_Capable_Resolver(Scheduler):
@@ -214,7 +291,9 @@ class Scheduler_MTU_1500(Scheduler):
 if __name__ == "__main__":
 	## List of network propeties
 	## testing purposes, we will not be running MTU_1280 just yet.
-	sch = Scheduler_IPv6_Capable("IPv6_Capable")
+	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
+	#sch.run()
+	sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	sch.run()
 	#net_props = ["ipv6Capable"]
 	#for prop in net_props:
