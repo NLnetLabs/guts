@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 ## Timeless Scheduler
 
-import dpkt
-import base64
 import Database
 from atlas import *
 
@@ -91,9 +89,16 @@ class Scheduler:
 		return done_probes
 
 	def print_status(self):
-		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(busy_probes)))
-		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(lazy_probes)))
-		print ("{}: done_probes: {}".format(self.get_propety_name(),len(done_probes)))
+		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(selfbusy_probes())))
+		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(self.lazy_probes())))
+		print ("{}: done_probes: {}".format(self.get_propety_name(),len(self.done_probes())))
+
+	def return_status(self):## return a list containing the status of the network propeties
+		stat = []
+		stat.append("{}: busy_probes: {}".format(self.get_propety_name(),len(self.busy_probes())))
+		stat.append("{}: lazy_probes: {}".format(self.get_propety_name(),len(self.lazy_probes())))
+		stat.append("{}: done_probes: {}".format(self.get_propety_name(),len(self.done_probes())))
+		return stat
 
 	def run(self):
 		self.measure()
@@ -304,9 +309,9 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
-			except Exception as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
+		except Exception as e:
+			print ("There was an error submitting that query, reason: {}".format(e))
+			pass
 		con.close()
 		return
 
@@ -400,7 +405,7 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 			WHERE finished = 0
 			AND network_propety = {prop}
 			AND submitted > {time_period}
-			""".format(prop = self.get_propety_name(),int(time_period))
+			""".format(prop = self.get_propety_name(),time_period = int(time_period))
 		rows = cursor.execute(q).fetchall()
 
 		if not rows:
@@ -453,19 +458,23 @@ class Scheduler_MTU(Scheduler):
 		return self.propety_name
  
 if __name__ == "__main__":
-	## List of network propeties
-	## testing purposes, we will not be running MTU_1280 just yet.
-	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
-	#sch.run()
 	sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	sch.run()
-	#net_props = ["ipv6Capable"]
-	#for prop in net_props:
-		#if prop == "ipv6Capable":
-			#sch = Scheduler_IPv6_Capable(prop)
-		#try:
-			#sch.run()
-		#except Exception,e:
-			#print ("There was and error: {}".format(e))
-			#pass
+	## List of network propeties
+	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","IPv4_ping_Capable"]
+	#for propety in network_propeties:
+		#if propety == "Ipv6_dns_Capable":
+			#sch = Scheduler.Scheduler_IPv6_dns_Capable(propety)
+		#elif propety == "IPv6_ping_Capable":
+			#sch = Scheduler.Scheduler_IPv6_ping_Capable(propety)
+		#elif propety == "IPv4_ping_Capable":
+			#sch = Scheduler.Scheduler_IPv4_ping_Capable(propety)
+		#else:
+			#sch = None
+		#if sch:
+			#try:
+				#sch.run()
+			#except Exception as e:
+				#print ("There was and error running propety: {}, reason: {}".format(propety,e))
+				#pass
 	#print("fin.")
