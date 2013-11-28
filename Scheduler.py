@@ -9,8 +9,8 @@ class Scheduler:
 	def __init__(self):
 		pass
 
-	def chunker(self,lis,num): ## A long list and the size of the chunks
-		for i in xrange(0, len(lis), num):
+	def chunker(self,lis,chunk_size):
+		for i in xrange(0, len(lis), chunk_size):
 			yield lis[i:i+num]
 
 	def ipv6_probes(self): ## for now, no args.
@@ -21,6 +21,7 @@ class Scheduler:
 		p = set([probe['id'] for probe in atlas.probe(prefix_v4 = '0.0.0.0/0', limit = 0) if probe['status'] == 1])
 		return p
 
+	## These are probes that are busy being measured for the current network propety.
 	def busy_probes(self):
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
@@ -30,6 +31,7 @@ class Scheduler:
 				AND Measurements.network_propety = '{prop}'
 				AND Measurements.measurement_id = Targeted.measurement_id
 			""".format(week = int(time_period),prop = self.get_propety_name())
+		print q
 		rows = cursor.execute(q).fetchall()
 
 		if rows:
@@ -40,8 +42,8 @@ class Scheduler:
 		#print ("{}: busy_probes: {}".format(self.get_propety_name(),len(busy_probes)))
 		return busy_probes
 
+	## These are probes that were targeted but did not respond in the last 7 days.
 	def lazy_probes(self): ## This needs testing because it relies on processed data.
-		## Select probes that were targeted but did not respond in the last 7 days
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5 ## The number of times a probe should appear in Targeted and have no result to be a lazy probe
@@ -67,6 +69,8 @@ class Scheduler:
 		#print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(lazy_probes)))
 		return lazy_probes
 
+	## These are probes that have been targeted and have a certain number of results.(For the most part they co-operated.)
+	## This does not mean these probes have good or bad results.
 	def done_probes(self):
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
@@ -88,8 +92,40 @@ class Scheduler:
 		#print ("{}: done_probes: {}".format(self.get_propety_name(),len(done_probes)))
 		return done_probes
 
+	## These are probes which have executed the measurements but have failed the entire week.
+	## These are probes which cannot perform this measurement.
+	def incapable_probes(self): ## This needs testing.
+		cursor = Database.get_con().cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """
+			SELECT probe_id FROM Targeted, Measurements, Results
+			WHERE Measurements.submitted > {week}
+			AND Measurements.measurement_id = Results.measurement_id
+			AND Measurements.network_propety = '{prop}'
+			AND (SELECT COUNT(good) from results,Measurements,Targeted
+				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
+				AND Measurements.network_propety = '{prop}'
+				GROUP BY Targeted.probe_id
+				AND Results.good = 0)
+				=
+				(SELECT COUNT(good) from results,Measurements,Targeted
+				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
+				AND Measurements.network_propety = '{prop}'
+				GROUP BY Targeted.probe_id)
+			""".format(week = int(time_period), prop = self.get_propety_name())
+		rows = cursor.execute(q).fetchall()
+		
+		if rows:
+			incapable_probes = set([probe[0] for probe in rows])
+		else:
+			incapable_probes = set([])
+
+		return incapable_probes
+
 	def print_status(self):
-		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(selfbusy_probes())))
+		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(self.busy_probes())))
 		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(self.lazy_probes())))
 		print ("{}: done_probes: {}".format(self.get_propety_name(),len(self.done_probes())))
 
@@ -448,7 +484,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 	def get_propety_name(self):
 		return self.propety_name
 
-class Scheduler_MTU(Scheduler):
+class Scheduler_MTU(Scheduler): ## Needs testing.
 
 	def __init__(self,propety):
 		self.propety_name = propety
@@ -456,19 +492,103 @@ class Scheduler_MTU(Scheduler):
 
 	def get_propety_name(self):
 		return self.propety_name
+
+	def measure(self):
+		ipv = str(self.get_propety_name()[3:4])
+		size=int(str(self.get_propety_name())[9:])
+		p  = ipv6_probes()
+		p -= Scheduler_MTU("IPv{}_MTU_{}".format(ipv,size)).incapable_probes()
+		p -= self.busy_probes()
+		p -= self.lazy_probes()
+		p -= self.done_probes()
+		if ipv == "4":
+			defs = traceroute4("213.136.31.100",size=int(str(self.get_propety_name())[9:]))
+		elif ipv == "6":
+			defs = traceroute6("2001:7b8:40:1:702c:29ff:fec7:ee03",size=int(str(self.get_propety_name())[9:]))
+		else:
+			print("Could not continue, reason: IP version is not clear.")
+			return
+		probes = list(p)
+		for chunk in chunker(probes,500):
+			try: ## If creating the measurement fails then nothing more must be done for this chunk.
+				measurements = atlas.create(defs,probes)
+				for measurement in measurements:
+					q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+							VALUES({msm},"{prop}",{now},0)
+						""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+					try:
+						cursor.execute(q)
+						print ("measurement: {} successfully inserted.".format(measurement))
+						for probe in chunk:
+							pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+							try:
+								cursor.execute(pq)
+							except Exception as e:
+								print("Error inserting probe: {}, reason: {}.".format(probe,e))
+					except Exception as e:
+						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+				con.commit()
+			except Exception as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+				pass
+		con.close()
+		return
+
+	## Get all measurement ids that are less than a week old and are ready to process.	
+	def process(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """
+			SELECT measurement_id from Measurements
+			WHERE finished = 0
+			AND network_propety = {prop}
+			AND submitted > {time_period}
+			""".format(prop = self.get_propety_name(),time_period = int(time_period))
+		rows = cursor.execute(q).fetchall()
+
+		if not rows:
+			print("There are no measurements to process")
+			return
+
+		measurements = set([measurement[0] for measurement in rows])
+		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
+		for measurement in measurements:
+			try:
+				response = [x for y in atlas.result(measurement) for x in y]
+				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+				for result in response:
+					probe_id = result['prb_id']
+					good = 0 if result['result'].get('error',None) else 1
+					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+					cursor.execute(q)
+				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+				cursor.execute(q)
+				print("Results processed")
+				con.commit()
+			except Exception as e:
+				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				pass
+		con.close()
+		return
  
 if __name__ == "__main__":
-	sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
+	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
+	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
+	#sch = Scheduler_IPv4_ping_Capable("IPv4_ping_Capable")
+	sch = Scheduler_MTU("IPv6_MTU_1500")
+	#sch = Scheduler_MTU("IPv4_MTU_12080")
 	sch.run()
 	## List of network propeties
 	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","IPv4_ping_Capable"]
 	#for propety in network_propeties:
 		#if propety == "Ipv6_dns_Capable":
-			#sch = Scheduler.Scheduler_IPv6_dns_Capable(propety)
+			#sch = Scheduler_IPv6_dns_Capable(propety)
 		#elif propety == "IPv6_ping_Capable":
-			#sch = Scheduler.Scheduler_IPv6_ping_Capable(propety)
+			#sch = Scheduler_IPv6_ping_Capable(propety)
 		#elif propety == "IPv4_ping_Capable":
-			#sch = Scheduler.Scheduler_IPv4_ping_Capable(propety)
+			#sch = Scheduler_IPv4_ping_Capable(propety)
 		#else:
 			#sch = None
 		#if sch:
