@@ -106,8 +106,8 @@ class Scheduler:
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
-				GROUP BY Targeted.probe_id
-				AND Results.good = 0)
+				AND Results.good = 0
+				GROUP BY Targeted.probe_id)
 				=
 				(SELECT COUNT(good) from results,Measurements,Targeted
 				WHERE Measurements.submitted > {week}
@@ -116,7 +116,7 @@ class Scheduler:
 				GROUP BY Targeted.probe_id)
 			""".format(week = int(time_period), prop = self.get_propety_name())
 		rows = cursor.execute(q).fetchall()
-		
+
 		if rows:
 			incapable_probes = set([probe[0] for probe in rows])
 		else:
@@ -201,7 +201,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -288,7 +288,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -367,7 +367,7 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -405,7 +405,7 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 		## I.E. all done IPv6 Capable probes.
 		p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").done_probes()
 		probes = list(p)
-		defs = dns6('nl','AAAA','2001:7b8:40:1:d0e1::1',use_probe_resolver=False)
+		defs = dns6('ripe67.nlnetlabs.nl','AAAA')
 		for chunk in chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
 				measurements = atlas.create(defs,probes)
@@ -449,7 +449,7 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -486,18 +486,26 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 
 class Scheduler_MTU(Scheduler): ## Needs testing.
 
-	def __init__(self,propety):
+	def __init__(self,propety,size):
 		self.propety_name = propety
+		self.mtu_size = size
 		Scheduler.__init__(self)
+
+	def get_mtu_size(self):
+		return self.mtu_size
 
 	def get_propety_name(self):
 		return self.propety_name
 
 	def measure(self):
 		ipv = str(self.get_propety_name()[3:4])
-		size=int(str(self.get_propety_name())[9:])
+		#size=int(str(self.get_propety_name())[9:])
+		#prev_size = 1500 if (size == 1280) else 1280
+		## Start with 1500 mtu, see if they are able to do it.
+		## Then use those which attempted but failed this measurement.
+		## Repeat until 512.
 		p  = ipv6_probes()
-		p -= Scheduler_MTU("IPv{}_MTU_{}".format(ipv,size)).incapable_probes()
+		p -= Scheduler_MTU("IPv{}_MTU_{}".format(ipv,prev_size)).incapable_probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -506,7 +514,7 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		elif ipv == "6":
 			defs = traceroute6("2001:7b8:40:1:702c:29ff:fec7:ee03",size=int(str(self.get_propety_name())[9:]))
 		else:
-			print("Could not continue, reason: IP version is not clear.")
+			print("Cannot continue, reason: IP version is not clear.")
 			return
 		probes = list(p)
 		for chunk in chunker(probes,500):
@@ -552,7 +560,7 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready to process.
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -577,8 +585,12 @@ if __name__ == "__main__":
 	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
 	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	#sch = Scheduler_IPv4_ping_Capable("IPv4_ping_Capable")
-	sch = Scheduler_MTU("IPv6_MTU_1500")
-	#sch = Scheduler_MTU("IPv4_MTU_12080")
+	sch = Scheduler_MTU("IPv6_MTU",1500)
+	#sch = Scheduler_MTU("IPv6_MTU",1280)
+	#sch = Scheduler_MTU("IPv6_MTU",512)
+	#sch = Scheduler_MTU("IPv4_MTU",1500)
+	#sch = Scheduler_MTU("IPv4_MTU",1280)
+	#sch = Scheduler_MTU("IPv4_MTU",512)
 	sch.run()
 	## List of network propeties
 	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","IPv4_ping_Capable"]
