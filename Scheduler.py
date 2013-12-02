@@ -498,14 +498,18 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		return self.propety_name
 
 	def measure(self):
-		ipv = str(self.get_propety_name()[3:4])
-		#size=int(str(self.get_propety_name())[9:])
-		#prev_size = 1500 if (size == 1280) else 1280
 		## Start with 1500 mtu, see if they are able to do it.
 		## Then use those which attempted but failed this measurement.
 		## Repeat until 512.
-		p  = ipv6_probes()
-		p -= Scheduler_MTU("IPv{}_MTU_{}".format(ipv,prev_size)).incapable_probes()
+		ipv = str(self.get_propety_name()[3:4])
+		if self.get_mtu_size() == 1500:
+			p = self.get_probes()
+		elif self.get_mtu_size() == 1280:
+			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1500)).incapable_probes()
+		elif self.get_mtu_size() == 512:
+			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1280)).incapable_probes()
+		else:
+			return
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
