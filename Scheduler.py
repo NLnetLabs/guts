@@ -115,7 +115,7 @@ class Scheduler:
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Targeted.probe_id)
-			AND (SELECT COUNT(good) from results,Measurements,Targeted
+			AND	(SELECT COUNT(*) from results,Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
@@ -510,12 +510,15 @@ class Scheduler_Probes_resolver(Scheduler):
 		rows = cursor.execute(q).fetchall()
 
 		if not rows:
-			print "no rows"
+			print("There are no results from IPv6_dns_Capable to get results from within the last week.")
 			return
 
 		jss = [json.loads(js[0]) for js in rows]
 		srcs = [js['src_addr'] for js in jss]
 		print ("Resolvers used: {}".format(srcs))
+		## Here link the probes to the resolvers, maybe resolvers = {resolver:[probes]}
+		## That way we could use for key in resolvers -> resolver = len(resolver.vaules()) and tell how many use that resolver.
+		## Ok, it doesn't return a list of resolvers.. It shouldn't. Something does need to happen here though.
 
 class Scheduler_DNSSEC_resolver(Scheduler):
 
