@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 ## Timeless Scheduler
 
+import json
 import Database
 from atlas import *
 
@@ -11,7 +12,7 @@ class Scheduler:
 
 	def chunker(self,lis,chunk_size):
 		for i in xrange(0, len(lis), chunk_size):
-			yield lis[i:i+num]
+			yield lis[i:i+chunk_size]
 
 	def ipv6_probes(self): ## for now, no args.
 		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1])
@@ -31,7 +32,6 @@ class Scheduler:
 				AND Measurements.network_propety = '{prop}'
 				AND Measurements.measurement_id = Targeted.measurement_id
 			""".format(week = int(time_period),prop = self.get_propety_name())
-		print q
 		rows = cursor.execute(q).fetchall()
 
 		if rows:
@@ -92,11 +92,12 @@ class Scheduler:
 		#print ("{}: done_probes: {}".format(self.get_propety_name(),len(done_probes)))
 		return done_probes
 
-	## These are probes which have executed the measurements but have failed the entire week.
+	## These are probes which have executed the measurements but have failed the entire week and have a certain number of results.
 	## These are probes which cannot perform this measurement.
 	def incapable_probes(self): ## This needs testing.
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		appearance = 5
 		q = """
 			SELECT probe_id FROM Targeted, Measurements, Results
 			WHERE Measurements.submitted > {week}
@@ -114,7 +115,12 @@ class Scheduler:
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Targeted.probe_id)
-			""".format(week = int(time_period), prop = self.get_propety_name())
+			AND (SELECT COUNT(good) from results,Measurements,Targeted
+				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
+				AND Measurements.network_propety = '{prop}'
+				GROUP BY Targeted.probe_id) > {appr}
+			""".format(week = int(time_period), prop = self.get_propety_name(),appr = appearance)
 		rows = cursor.execute(q).fetchall()
 
 		if rows:
@@ -139,7 +145,7 @@ class Scheduler:
 	def run(self):
 		self.measure()
 		self.process()
-		self.print_status()
+		#self.print_status()
 
 class Scheduler_IPv6_dns_Capable(Scheduler):
 
@@ -214,10 +220,10 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 					## When checking the answer from DNS we exclude those that do not have an answer.
 					if good:
 						## Since the query has returned a result we will now check that result.
-						good = 0 if (result['ANCOUNT'] == 0) else 1
-					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+						good = 0 if (result['result']['ANCOUNT'] == 0) else 1
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
 				cursor.execute(q)
 				print("Results processed")
 				con.commit()
@@ -298,9 +304,9 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 					probe_id = result['prb_id']
 					## Looking for "error" in result.(This will also work for traceroute)
 					good = 0 if result['result'].get('error',None) else 1
-					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
 				cursor.execute(q)
 				print("Results processed")
 				con.commit()
@@ -377,10 +383,9 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 					probe_id = result['prb_id']
 					## Looking for "error" in result.(This will also work for traceroute)
 					good = 0 if result['result'].get('error',None) else 1
-					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
-				cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
 				print("Results processed")
 				con.commit()
 			except Exception as e:
@@ -463,17 +468,54 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 					if good:
 						## Since the query has returned a result we will now check that result.
 						good = 0 if (result['ANCOUNT'] == 0) else 1
-					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
 				cursor.execute(q)
-				print("Results processed")
+				print("Results processed.")
 				con.commit()
 			except Exception as e:
-				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				print("There was an error processing measurement: {}, reason: {}.".format(measurement,e))
 				pass
 		con.close()
 		return
+
+class Scheduler_Probes_resolver(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def get_propety_name(self):
+		return self.propety_name
+
+	def measure(self):
+		## Could use the results of ipv6_dns_capable.
+		## Otherwise: Use the probes which were successful at ipv6_dns_capable
+
+		## for now I will implement the former.
+		pass
+
+	def process(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """
+			SELECT Results.json from Results, Measurements
+			WHERE Measurements.Submitted > {week}
+			AND Results.measurement_id = Measurements.measurement_id
+			AND Measurements.network_propety = '{prop}'
+			AND Results.good = 1
+			""".format(prop = "IPv6_dns_Capable",week = int(time_period))
+		rows = cursor.execute(q).fetchall()
+
+		if not rows:
+			print "no rows"
+			return
+
+		jss = [json.loads(js[0]) for js in rows]
+		srcs = [js['src_addr'] for js in jss]
+		print ("Resolvers used: {}".format(srcs))
 
 class Scheduler_DNSSEC_resolver(Scheduler):
 
@@ -486,13 +528,17 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 
 class Scheduler_MTU(Scheduler): ## Needs testing.
 
-	def __init__(self,propety,size):
+	def __init__(self,propety,ip,size):
 		self.propety_name = propety
 		self.mtu_size = size
+		self.ipv = ip
 		Scheduler.__init__(self)
 
 	def get_mtu_size(self):
 		return self.mtu_size
+
+	def get_ipv(self):
+		return self.ipv
 
 	def get_propety_name(self):
 		return self.propety_name
@@ -501,22 +547,22 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		## Start with 1500 mtu, see if they are able to do it.
 		## Then use those which attempted but failed this measurement.
 		## Repeat until 512.
-		ipv = str(self.get_propety_name()[3:4])
 		if self.get_mtu_size() == 1500:
 			p = self.get_probes()
 		elif self.get_mtu_size() == 1280:
-			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1500)).incapable_probes()
+			p = Scheduler_MTU("IPv{}_MTU_{}".format(self.get_ipv(),1500),self.get_ipv(),1500).incapable_probes()
 		elif self.get_mtu_size() == 512:
-			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1280)).incapable_probes()
+			p = Scheduler_MTU("IPv{}_MTU_{}".format(self.get_ipv(),1280),self.get_ipv(),1280).incapable_probes()
 		else:
+			print("Cannot continue, reason: The chosen MTU size is not supported.")
 			return
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
 		if ipv == "4":
-			defs = traceroute4("213.136.31.100",size=int(str(self.get_propety_name())[9:]))
+			defs = traceroute4("213.136.31.100",size=self.get_mtu_size())
 		elif ipv == "6":
-			defs = traceroute6("2001:7b8:40:1:702c:29ff:fec7:ee03",size=int(str(self.get_propety_name())[9:]))
+			defs = traceroute6("2001:7b8:40:1:702c:29ff:fec7:ee03",size=self.get_mtu_size())
 		else:
 			print("Cannot continue, reason: IP version is not clear.")
 			return
@@ -573,9 +619,9 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 				for result in response:
 					probe_id = result['prb_id']
 					good = 0 if result['result'].get('error',None) else 1
-					q = 'insert into Results(measurement_id,probe_id,good,json) values({},{},{},"{}")'.format(measurement,probe_id,good,result)
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(measurement_header,measurement)
+				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(json.dumps(measurement_header),measurement)
 				cursor.execute(q)
 				print("Results processed")
 				con.commit()
@@ -589,12 +635,13 @@ if __name__ == "__main__":
 	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
 	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	#sch = Scheduler_IPv4_ping_Capable("IPv4_ping_Capable")
-	sch = Scheduler_MTU("IPv6_MTU",1500)
+	#sch = Scheduler_MTU("IPv6_MTU",1500)
 	#sch = Scheduler_MTU("IPv6_MTU",1280)
 	#sch = Scheduler_MTU("IPv6_MTU",512)
 	#sch = Scheduler_MTU("IPv4_MTU",1500)
 	#sch = Scheduler_MTU("IPv4_MTU",1280)
 	#sch = Scheduler_MTU("IPv4_MTU",512)
+	sch = Scheduler_Probes_resolver("Probes_resolver")
 	sch.run()
 	## List of network propeties
 	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","IPv4_ping_Capable"]
