@@ -137,8 +137,8 @@ class Scheduler:
 		return stat
 
 	def run(self):
-		self.measure()
-		#self.process()
+		#self.measure()
+		self.process()
 		#self.print_status()
 
 class Scheduler_IPv6_dns_Capable(Scheduler):
@@ -565,8 +565,8 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				except Exception as e:
 					print ("There was an error submitting that query, reason: {}".format(e))
 					pass
-			con.close()
-			return
+		con.close()
+		return
 
 	def process(self):
 		## First dnssec
@@ -577,7 +577,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 			SELECT measurement_id from Measurements
 			WHERE finished = 0
 			AND network_propety = '{prop}'
-			AND submitted > {time_period}
+			AND submitted > {week}
 			""".format(prop = str(self.get_propety_name())+"_dnssec",week = int(time_period))
 		dnssec_rows = cursor.execute(q).fetchall()
 
@@ -593,20 +593,43 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 			SELECT measurement_id from Measurements
 			WHERE finished = 0
 			AND network_propety = '{prop}'
-			AND submitted > {time_period}
+			AND submitted > {week}
 			""".format(prop = str(self.get_propety_name())+"_nosec",week = int(time_period))
-		nosec_rows = cursor.execute(q).fetchall()
+		nossec_rows = cursor.execute(q).fetchall()
 
-		if not nosec_rows:
-			print("Cannot continue. Reason: there are no {}_nosec results to process.".format(self.get_propety_name()))
+		if not nossec_rows:
+			print ("Cannot continue. Reason: there are no {}_nosec results to process.".format(self.get_propety_name()))
 			return
-		
+
 		## Hoping for symetry.
-		if len(dnssec_rows) != len(nosec_rows):
-			print ("Cannot continue. Reason: Symetry between dnssec and non dnsec not maintained meaning we cannot cross reference the results.")
+		if len(dnssec_rows) != len(nossec_rows):
+			print ("Cannot continue. Reason: No Symetry between dnssec and non dnsec, maintained meaning we cannot cross reference the results.")
 			return
 
-		print dnssec_rows,nosec_rows
+		dnssec_mes = [row[0] for row in dnssec_rows]
+		nossec_mes = [row[0] for row in nossec_rows]
+		for measurement in range(len(dnssec_rows)):
+			try:
+				sec_results = {x['prb_id']: x for x in list(atlas.result(dnssec_mes[measurement]))[0]}
+				nos_results = {x['prb_id']: x for x in list(atlas.result(nossec_mes[measurement]))[0]}
+				results = [(sec_results[p], nos_results[p]) for p in (set(sec_results.keys()) & set(nos_results.keys()))]
+				for result in results:## if 'answers' exists in the probes results then it recieved bogus message A simple test.
+					good = 1 if ('answers' in result[0]['result'] and 'answers' in result[1]['result']) else 0
+					q = """INSERT INTO Results(measurement_id,probe_id,good,json) VALUES({},{},{},'{}')
+						""".format(dnssec_mes[measurement],result[0]['prb_id'],good,(json.dumps(json.dumps(result[0]),result[1])))
+					cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1 WHERE measurement_id={}".format(dnssec_mes[measurement])
+				cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1 WHERE measurement_id={}".format(nossec_mes[measurement])
+				cursor.execute(q)
+				print("Results for measurements: {} processed".format((dnssec_mes[measurement],nossec_mes[measurement])))
+				con.commit()
+			except urllib2.HTTPError as e:
+				print ("Could not retrieve results, reason: {}".format(e))
+				pass
+			except Exception as e:
+				print ("Could not continue, reason: {}".format(e))
+				pass
 
 class Scheduler_MTU(Scheduler): ## Needs testing.
 
