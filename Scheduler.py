@@ -614,7 +614,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				nos_results = {x['prb_id']: x for x in list(atlas.result(nossec_mes[measurement]))[0]}
 				results = [(sec_results[p], nos_results[p]) for p in (set(sec_results.keys()) & set(nos_results.keys()))]
 				for result in results:## if 'answers' exists in the probes results then it recieved bogus message A simple test.
-					good = 1 if ('answers' in result[0]['result'] and 'answers' in result[1]['result']) else 0
+					good = 0 if ('answers' in result[0]['result'] and 'answers' in result[1]['result']) else 1
 					q = """INSERT INTO Results(measurement_id,probe_id,good,json) VALUES({},{},{},'{}')
 						""".format(dnssec_mes[measurement],result[0]['prb_id'],good,(json.dumps(json.dumps(result[0]),result[1])))
 					cursor.execute(q)
