@@ -7,19 +7,22 @@ import urllib2 ## Used to explain submitting errors
 
 class Scheduler:
 
-	def __init__(self):
+	def __init__(self): ## Nothing to do here..
 		pass
 
+	## Chunk lists of elements into smaller lists.
 	def chunker(self,lis,chunk_size):
 		for i in xrange(0, len(lis), chunk_size):
 			yield lis[i:i+chunk_size]
 
-	def ipv6_probes(self): ## for now, no args.
-		p = set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1])
-		return p
-
-	def ipv4_probes(self): ## for now, no args.
-		p = set([probe['id'] for probe in atlas.probe(prefix_v4 = '0.0.0.0/0', limit = 0) if probe['status'] == 1])
+	def probes(self, ipv4 = None, ipv6 = None):
+		if (ipv4 == None and ipv6 == None):
+			prefix_v6 = 1 ## Default to ipv6, most interesing and least number of probes. Everyone wins.
+		p = set([])
+		if ipv4:
+			p.update(set([probe['id'] for probe in atlas.probe(prefix_v4 = '0.0.0.0/0', limit = 0) if probe['status'] == 1]))
+		if ipv6:
+			p.update(set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1]))
 		return p
 
 	## These are probes that are busy being measured for the current network propety.
@@ -93,7 +96,7 @@ class Scheduler:
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
 		appearance = 5
 		q = """
-			SELECT probe_id FROM Targeted, Measurements, Results
+			SELECT Targeted.probe_id FROM Targeted, Measurements, Results
 			WHERE Measurements.submitted > {week}
 			AND Measurements.measurement_id = Results.measurement_id
 			AND Measurements.network_propety = '{prop}'
@@ -128,6 +131,7 @@ class Scheduler:
 		print ("{}: busy_probes: {}".format(self.get_propety_name(),len(self.busy_probes())))
 		print ("{}: lazy_probes: {}".format(self.get_propety_name(),len(self.lazy_probes())))
 		print ("{}: done_probes: {}".format(self.get_propety_name(),len(self.done_probes())))
+		#print ("{}: Incapable_probes: {}".format(self.get_propety_name(),len(self.incapable_probes())))
 
 	def return_status(self):## return a list containing the status of the network propeties
 		stat = []
@@ -137,10 +141,11 @@ class Scheduler:
 		return stat
 
 	def run(self):
-		#self.measure()
+		self.measure()
 		self.process()
 		self.print_status()
 
+## Test which ipv6 probes have dns capability.
 class Scheduler_IPv6_dns_Capable(Scheduler):
 
 	def __init__(self,propety):
@@ -153,7 +158,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.ipv6_probes()
+		p  = self.probes(ipv6 = 1)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -178,9 +183,10 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -205,7 +211,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 		for measurement in measurements:
 			try:
 				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = list(atlas.measurement(measurement))[0]]
+				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
 					## This only works for DNS.
@@ -237,7 +243,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.ipv6_probes()
+		p  = self.probes(ipv6 = 1)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -263,9 +269,10 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -316,7 +323,7 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 		return self.propety_name
 
 	def measure(self):
-		p  = self.ipv4_probes()
+		p  = self.probes(ipv4 = 1)
 		p -= self.busy_probes()
 		p -= lazy_probes()
 		p -= done_probes()
@@ -341,9 +348,10 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
 		con.close()
 
 	def process(self):
@@ -370,7 +378,7 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
-					## Looking for "error" in result.(This will also work for traceroute)
+					## Looking for "error" in result.
 					good = 0 if result['result'].get('error',None) else 1
 					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
@@ -418,9 +426,10 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.	
@@ -522,7 +531,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.ipv6_probes()
+		p  = self.probes(ipv6 = 1)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -554,9 +563,10 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 						except Exception as e:
 							print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 					con.commit()
+				except urllib2.HTTPError as e:
+					print ("There was an error submitting that query, reason: {}".format(e))
 				except Exception as e:
 					print ("There was an error submitting that query, reason: {}".format(e))
-					pass
 		con.close()
 
 	def process(self):
@@ -617,7 +627,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				print("Results for measurements: {} processed".format((dnssec_mes[measurement],nossec_mes[measurement])))
 				con.commit()
 			except urllib2.HTTPError as e:
-				print ("Could not retrieve results, reason: {}".format(e))
+				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 			except Exception as e:
 				print ("Could not continue, reason: {}".format(e))
@@ -651,9 +661,12 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		cursor = con.cursor()
 		if   mtu == 1500:
 			if ipv == 4:
-				p = self.ipv4_probes()
+				p  = self.probes(ipv4 = 1)
+			elif ipv == 6:
+				p  = self.probes(ipv6 = 1)
 			else:
-				p = self.ipv6_probes()
+				print ("Cannot continue, reason: IP version is unknown.")
+				return
 		elif mtu == 1280:
 			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1500),ipv,1500).incapable_probes()
 		elif mtu == 512:
@@ -695,9 +708,10 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 					except Exception as e:
 						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
-				pass
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.	
@@ -721,20 +735,20 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
-			#try:
-			response = [x for y in atlas.result(measurement) for x in y]
-			measurement_header = list(atlas.measurement(measurement))[0]
-			for result in response:
-				good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
-				q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,result['prb_id'],good,json.dumps(result))
+			try:
+				response = [x for y in atlas.result(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
+				for result in response:
+					good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,result['prb_id'],good,json.dumps(result))
+					cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
 				cursor.execute(q)
-			q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
-			cursor.execute(q)
-			print("Results for measurement: {} processed".format(measurement))
-				#con.commit()
-			#except Exception as e:
-				#print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
-				#pass
+				print("Results for measurement: {} processed".format(measurement))
+				con.commit()
+			except Exception as e:
+				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				pass
 		con.close()
 
 if __name__ == "__main__":
