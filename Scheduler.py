@@ -139,7 +139,7 @@ class Scheduler:
 	def run(self):
 		#self.measure()
 		self.process()
-		#self.print_status()
+		self.print_status()
 
 class Scheduler_IPv6_dns_Capable(Scheduler):
 
@@ -182,7 +182,6 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 		con.close()
-		return
 
 	## Get all measurement ids that are less than a week old and are ready to process.
 	def process(self):
@@ -206,7 +205,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 		for measurement in measurements:
 			try:
 				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]]
 				for result in response:
 					probe_id = result['prb_id']
 					## This only works for DNS.
@@ -225,7 +224,6 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
 				pass
 		con.close()
-		return
 
 class Scheduler_IPv6_ping_Capable(Scheduler):
 
@@ -269,7 +267,6 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 		con.close()
-		return
 
 	## Get all measurement ids that are less than a week old and are ready to process.
 	def process(self):
@@ -293,7 +290,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 		for measurement in measurements:
 			try:
 				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
 					## Looking for "error" in result.(This will also work for traceroute)
@@ -308,7 +305,6 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
 				pass
 		con.close()
-		return
 
 class Scheduler_IPv4_ping_Capable(Scheduler):
 
@@ -349,7 +345,6 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 		con.close()
-		return
 
 	def process(self):
 		con = Database.get_con()
@@ -372,7 +367,7 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 		for measurement in measurements:
 			try:
 				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
 					## Looking for "error" in result.(This will also work for traceroute)
@@ -386,7 +381,6 @@ class Scheduler_IPv4_ping_Capable(Scheduler):
 				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
 				pass
 		con.close()
-		return
 
 class Scheduler_IPv6_Capable_Resolver(Scheduler):
 
@@ -428,7 +422,6 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 		con.close()
-		return
 
 	## Get all measurement ids that are less than a week old and are ready to process.	
 	def process(self):
@@ -453,7 +446,7 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 		for measurement in measurements:
 			try:
 				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
 					## This only works for DNS.
@@ -472,7 +465,6 @@ class Scheduler_IPv6_Capable_Resolver(Scheduler):
 				print("There was an error processing measurement: {}, reason: {}.".format(measurement,e))
 				pass
 		con.close()
-		return
 
 ## I feel this should not be a Scheduler but instead something that will be processed by the web ui
 class Scheduler_Probes_resolver(Scheduler):
@@ -566,7 +558,6 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 					print ("There was an error submitting that query, reason: {}".format(e))
 					pass
 		con.close()
-		return
 
 	def process(self):
 		## First dnssec
@@ -610,7 +601,8 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 		nossec_mes = [row[0] for row in nossec_rows]
 		for measurement in range(len(dnssec_rows)):
 			try:
-				sec_results = {x['prb_id']: x for x in list(atlas.result(dnssec_mes[measurement]))[0]}
+				measurement_header = list(atlas.measurement(measurement))[0]
+				sec_results = {x['prb_id']: x for x in list(atlas.result(dnssec_mes[measurement]))[0]} ## AWWW YISS.. DICTIONARY COMPREHENSION!! >.<
 				nos_results = {x['prb_id']: x for x in list(atlas.result(nossec_mes[measurement]))[0]}
 				results = [(sec_results[p], nos_results[p]) for p in (set(sec_results.keys()) & set(nos_results.keys()))]
 				for result in results:## if 'answers' exists in the probes results then it recieved bogus message A simple test.
@@ -620,7 +612,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 					cursor.execute(q)
 				q = "UPDATE Measurements SET finished = 1 WHERE measurement_id={}".format(dnssec_mes[measurement])
 				cursor.execute(q)
-				q = "UPDATE Measurements SET finished = 1 WHERE measurement_id={}".format(nossec_mes[measurement])
+				q = "UPDATE Measurements SET finished = 1 json = '{}' WHERE measurement_id={}".format(json.dumps(measurement_header),nossec_mes[measurement])
 				cursor.execute(q)
 				print("Results for measurements: {} processed".format((dnssec_mes[measurement],nossec_mes[measurement])))
 				con.commit()
@@ -630,6 +622,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 			except Exception as e:
 				print ("Could not continue, reason: {}".format(e))
 				pass
+		con.close()
 
 class Scheduler_MTU(Scheduler): ## Needs testing.
 
@@ -706,7 +699,6 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 				print ("There was an error submitting that query, reason: {}".format(e))
 				pass
 		con.close()
-		return
 
 	## Get all measurement ids that are less than a week old and are ready to process.	
 	def process(self):
@@ -729,30 +721,29 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
-			try:
-				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = [x for y in atlas.measurement(measurement) for x in y]
-				for result in response:
-					good = 0 if result['result'].get('error',None) else 1
-					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
-					cursor.execute(q)
-				q = 'UPDATE Measurements SET finished = 1,json="{}" WHERE measurement_id = {}'.format(json.dumps(measurement_header),measurement)
+			#try:
+			response = [x for y in atlas.result(measurement) for x in y]
+			measurement_header = list(atlas.measurement(measurement))[0]
+			for result in response:
+				good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
+				q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,result['prb_id'],good,json.dumps(result))
 				cursor.execute(q)
-				print("Results for measurement: {} processed".format(measurement))
-				con.commit()
-			except Exception as e:
-				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
-				pass
+			q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
+			cursor.execute(q)
+			print("Results for measurement: {} processed".format(measurement))
+				#con.commit()
+			#except Exception as e:
+				#print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				#pass
 		con.close()
-		return
 
 if __name__ == "__main__":
 	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
 	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	#sch = Scheduler_IPv4_ping_Capable("IPv4_ping_Capable")
-	sch = Scheduler_DNSSEC_resolver("DNSSEC_resolver")
+	#sch = Scheduler_DNSSEC_resolver("DNSSEC_resolver")
 	#sch = Scheduler_IPv6_Capable_Resolver("IPv6_Capable_Resolver")
-	#sch = Scheduler_MTU("IPv6_MTU",6,1500)
+	sch = Scheduler_MTU("IPv6_MTU",6,1500)
 	#sch = Scheduler_MTU("IPv6_MTU",1280)
 	#sch = Scheduler_MTU("IPv6_MTU",512)
 	#sch = Scheduler_MTU("IPv4_MTU",1500)
