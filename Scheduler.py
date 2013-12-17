@@ -12,6 +12,9 @@ class Scheduler:
 	def __init__(self): ## Nothing to do here..
 		pass
 
+	def get_propety_name(self):
+		return self.propety_name
+
 	## Chunk lists of elements into smaller lists.
 	def chunker(self,lis,chunk_size):
 		for i in xrange(0, len(lis), chunk_size):
@@ -102,19 +105,19 @@ class Scheduler:
 			WHERE Measurements.submitted > {week}
 			AND Measurements.measurement_id = Results.measurement_id
 			AND Measurements.network_propety = '{prop}'
-			AND (SELECT COUNT(good) from results,Measurements,Targeted
+			AND (SELECT COUNT(Results.good) from Results,Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				AND Results.good = 0
 				GROUP BY Targeted.probe_id)
 				=
-				(SELECT COUNT(good) from results,Measurements,Targeted
+				(SELECT COUNT(Results.good) from Results,Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Targeted.probe_id)
-			AND	(SELECT COUNT(*) from results,Measurements,Targeted
+			AND	(SELECT COUNT(Results.good) from Results,Measurements,Targeted
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
@@ -154,9 +157,6 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 		self.propety_name = propety
 		Scheduler.__init__(self)
 
-	def get_propety_name(self):
-		return self.propety_name
-
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
@@ -168,27 +168,26 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 		probes = list(p)
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
-				measurements = atlas.create(defs,chunk)['measurements']
-				for measurement in measurements:
-					q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
-							VALUES({msm},"{prop}",{now},0)
-						""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
-					try:
-						cursor.execute(q)
-						print ("measurement: {} successfully inserted.".format(measurement))
-						for probe in chunk:
-							pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-							try:
-								cursor.execute(pq)
-							except Exception as e:
-								print("Error inserting probe: {}, reason: {}.".format(probe,e))
-					except Exception as e:
-						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
-				con.commit()
-			except urllib2.HTTPError as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
-			except Exception as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
+				measurement = atlas.create(defs,chunk)['measurements'][0]
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				try:
+					cursor.execute(q)
+					print ("measurement: {} successfully inserted.".format(measurement))
+					for probe in chunk:
+						pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+						try:
+							cursor.execute(pq)
+						except Exception as e:
+							print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				except Exception as e:
+					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+			con.commit()
+		except urllib2.HTTPError as e:
+			print ("There was an error submitting that query, reason: {}".format(e))
+		except Exception as e:
+			print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -239,9 +238,6 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 		self.propety_name = propety
 		Scheduler.__init__(self)
 
-	def get_propety_name(self):
-		return self.propety_name
-
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
@@ -254,27 +250,26 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 		## Need to handle chunks here.
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
-				measurements = atlas.create(defs,chunk)['measurements']
-				for measurement in measurements:
-					q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
-							VALUES({msm},"{prop}",{now},0)
-						""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
-					try:
-						cursor.execute(q)
-						print ("measurement: {} successfully inserted.".format(measurement))
-						for probe in chunk:
-							pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-							try:
-								cursor.execute(pq)
-							except Exception as e:
-								print("Error inserting probe: {}, reason: {}.".format(probe,e))
-					except Exception as e:
-						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
-				con.commit()
-			except urllib2.HTTPError as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
-			except Exception as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
+				measurement = atlas.create(defs,chunk)['measurements'][0]
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				try:
+					cursor.execute(q)
+					print ("measurement: {} successfully inserted.".format(measurement))
+					for probe in chunk:
+						pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+						try:
+							cursor.execute(pq)
+						except Exception as e:
+							print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				except Exception as e:
+					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+			con.commit()
+		except urllib2.HTTPError as e:
+			print ("There was an error submitting that query, reason: {}".format(e))
+		except Exception as e:
+			print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -322,9 +317,6 @@ class Scheduler_Probes_resolver(Scheduler):
 		self.propety_name = propety
 		Scheduler.__init__(self)
 
-	def get_propety_name(self):
-		return self.propety_name
-
 	def measure(self):
 		## Could use the results of ipv6_dns_capable.
 		## Otherwise: Use the probes which were successful at ipv6_dns_capable
@@ -365,9 +357,6 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 		self.propety_name = propety
 		Scheduler.__init__(self)
 
-	def get_propety_name(self):
-		return self.propety_name
-
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
@@ -386,22 +375,21 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				propety = str(self.get_propety_name())+"_nosec"
 			for chunk in self.chunker(probes,500):
 				try: ## If creating the measurement fails then nothing more must be done for this chunk.
-					measurements = atlas.create(defs,chunk)['measurements']
-					for measurement in measurements:
-						q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
-								VALUES({msm},"{prop}",{now},0)
-							""".format(msm = measurement,prop = propety, now = int(time()))
-						try:
-							cursor.execute(q)
-							print ("measurement: {} successfully inserted.".format(measurement))
-							for probe in chunk:
-								pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-								try:
-									cursor.execute(pq)
-								except Exception as e:
-									print("Error inserting probe: {}, reason: {}.".format(probe,e))
-						except Exception as e:
-							print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+					measurement = atlas.create(defs,chunk)['measurements'][0]
+					q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+							VALUES({msm},"{prop}",{now},0)
+						""".format(msm = measurement,prop = propety, now = int(time()))
+					try:
+						cursor.execute(q)
+						print ("measurement: {} successfully inserted.".format(measurement))
+						for probe in chunk:
+							pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+							try:
+								cursor.execute(pq)
+							except Exception as e:
+								print("Error inserting probe: {}, reason: {}.".format(probe,e))
+					except Exception as e:
+						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
 					con.commit()
 				except urllib2.HTTPError as e:
 					print ("There was an error submitting that query, reason: {}".format(e))
@@ -488,9 +476,6 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 	def get_ipv(self):
 		return self.ipv
 
-	def get_propety_name(self):
-		return self.propety_name
-
 	def measure(self):
 		## Start with 1500 mtu, see if they are able to do it.
 		## Then use those which attempted but failed this measurement.
@@ -514,7 +499,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		else:
 			print("Cannot continue, reason: The chosen MTU size is not supported.")
 			return
-
+#
 		if not p:
 			return
 
@@ -535,22 +520,18 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		probes = list(p)
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
-				measurements = atlas.create(defs,chunk)['measurements']
-				for measurement in measurements:
-					q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
-							VALUES({msm},"{prop}",{now},0)
-						""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				measurement = atlas.create(defs,chunk)['measurements'][0]
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				cursor.execute(q)
+				print ("measurement: {} successfully inserted.".format(measurement))
+				for probe in chunk:
+					pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
 					try:
-						cursor.execute(q)
-						print ("measurement: {} successfully inserted.".format(measurement))
-						for probe in chunk:
-							pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-							try:
-								cursor.execute(pq)
-							except Exception as e:
-								print("Error inserting probe: {}, reason: {}.".format(probe,e))
+						cursor.execute(pq)
 					except Exception as e:
-						print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
+						print("Error inserting probe: {}, reason: {}.".format(probe,e))
 				con.commit()
 			except urllib2.HTTPError as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
@@ -583,7 +564,12 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 				response = [x for y in atlas.result(measurement) for x in y]
 				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
-					good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
+					## This only works for DNS.
+					good = 0 if result.get('error',None) else 1
+					## When checking the answer from DNS we exclude those that do not have an answer.
+					if good:
+						## Since the query has returned a result we will now check that result.
+						good = 0 if (result['result']['ANCOUNT'] == 0) else 1
 					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,result['prb_id'],good,json.dumps(result))
 					cursor.execute(q)
 				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
@@ -593,6 +579,55 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 			except Exception as e:
 				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
 				pass
+		con.close()
+
+class Scheduler_MTU_Ping_IPv6(Scheduler):
+
+	def __init__(self,propety,size):
+		self.propety_name = propety
+		self.mtu_size = size
+		Scheduler.__init__(self)
+
+	def get_size(self):
+		return self.mtu_size
+
+	def measure(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		size = self.get_size()
+
+		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target random anchors
+
+		if size == 1500:
+			p = self.probes()
+		else:
+			p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()		
+
+		p -= self.busy_probes()
+		p -= self.lazy_probes()
+		p -= self.done_probes()
+
+		probes = list(p)
+		defs = ping6(target=anchor['ip_v6'],size=size)
+		for chunk in self.chunker(probes,500):
+			try:
+				measurement = atlas.create(defs,chunk)['measurements'][0]
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				cursor.execute(q)
+				print ("measurement: {} successfully inserted.".format(measurement))
+				for probe in chunk:
+					pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+					try:
+						cursor.execute(pq)
+					except Exception as e:
+						print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+			except Exception as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
 class Scheduler_MTU_Trace(Scheduler):
