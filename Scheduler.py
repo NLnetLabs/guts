@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 ## Timeless Scheduler
 
+import random
 import Database
 from atlas import *
 import AnchorList## External script to get the anchor info, in use until anchor API.
@@ -518,7 +519,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 			return
 
 		anchors = AnchorList.AnchorList()## External script to get the anchor info, in use until anchor API.
-		anchor  = anchors[0]
+		anchor  = anchors[random.randint(0,len(anchors))]## Choose a "random" anchor in the list of anchors.
 
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
