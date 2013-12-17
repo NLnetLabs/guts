@@ -3,6 +3,7 @@
 
 import Database
 from atlas import *
+import AnchorList## External script to get the anchor info, in use until anchor API.
 import urllib2 ## Used to explain submitting errors
 
 class Scheduler:
@@ -17,7 +18,7 @@ class Scheduler:
 
 	def probes(self, ipv4 = None, ipv6 = None):
 		if (ipv4 == None and ipv6 == None):
-			prefix_v6 = 1 ## Default to ipv6, most interesing and least number of probes. Everyone wins.
+			ipv6 = 1 ## Default to ipv6, most interesing and least number of probes. Everyone wins.
 		p = set([])
 		if ipv4:
 			p.update(set([probe['id'] for probe in atlas.probe(prefix_v4 = '0.0.0.0/0', limit = 0) if probe['status'] == 1]))
@@ -142,8 +143,8 @@ class Scheduler:
 
 	def run(self):
 		self.measure()
-		self.process()
-		self.print_status()
+		#self.process()
+		#self.print_status()
 
 ## Test which ipv6 probes have dns capability.
 class Scheduler_IPv6_dns_Capable(Scheduler):
@@ -158,11 +159,11 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes(ipv6 = 1)
+		p  = self.probes()## defaults to ipv6. See probes.
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
-		defs = dns6('nl','AAAA')
+		defs = dns6('ripe67.nlnetlabs.nl','AAAA')
 		probes = list(p)
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
@@ -243,7 +244,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes(ipv6 = 1)
+		p  = self.probes()## defaults to ipv6. See probes.
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -369,7 +370,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes(ipv6 = 1)
+		p  = self.probes()## defaults to ipv6. See probes.
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -424,7 +425,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 			print("Cannot continue. Reason: there are no {}_dnssec results to process.".format(self.get_propety_name()))
 			return
 
-		## Second nosec
+		## Second nossec
 		con = Database.get_con()
 		cursor = con.cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
@@ -442,7 +443,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 
 		## Hoping for symetry.
 		if len(dnssec_rows) != len(nossec_rows):
-			print ("Cannot continue. Reason: No Symetry between dnssec and non dnsec, maintained meaning we cannot cross reference the results.")
+			print ("Cannot continue. Reason: No Symetry between dnssec and non dnsec maintained, meaning we cannot cross reference the results.")
 			return
 
 		dnssec_mes = [row[0] for row in dnssec_rows]
@@ -472,7 +473,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				pass
 		con.close()
 
-class Scheduler_MTU(Scheduler): ## Needs testing.
+class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 
 	def __init__(self,propety,ip,size):
 		self.propety_name = propety
@@ -499,16 +500,16 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		cursor = con.cursor()
 		if   mtu == 1500:
 			if ipv == 4:
-				p  = self.probes(ipv4 = 1)
+				p  = self.probes(1)## ipv4 See probes.
 			elif ipv == 6:
-				p  = self.probes(ipv6 = 1)
+				p  = self.probes()## defaults to ipv6. See probes.
 			else:
 				print ("Cannot continue, reason: IP version is unknown.")
 				return
 		elif mtu == 1280:
-			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1500),ipv,1500).incapable_probes()
+			p = Scheduler_MTU_DNS("IPv{}_MTU_DNS_{}".format(ipv,1500),ipv,1500).incapable_probes()
 		elif mtu == 512:
-			p = Scheduler_MTU("IPv{}_MTU_{}".format(ipv,1280),ipv,1280).incapable_probes()
+			p = Scheduler_MTU_DNS("IPv{}_MTU_DNS_{}".format(ipv,1280),ipv,1280).incapable_probes()
 		else:
 			print("Cannot continue, reason: The chosen MTU size is not supported.")
 			return
@@ -516,13 +517,17 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 		if not p:
 			return
 
+		anchors = AnchorList.AnchorList()## External script to get the anchor info, in use until anchor API.
+		anchor  = anchors[0]
+
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
+
 		if ipv == 4:
-			defs = ping("213.136.31.100",size=mtu)
+			defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
 		elif ipv == 6:
-			defs = ping6("2001:7b8:40:1:702c:29ff:fec7:ee03",size=mtu)
+			defs = dns6("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v6'],udp_payload_size=mtu)
 		else:
 			print("Cannot continue, reason: IP version is not clear.")
 			return
@@ -589,20 +594,25 @@ class Scheduler_MTU(Scheduler): ## Needs testing.
 				pass
 		con.close()
 
+class Scheduler_MTU_Trace(Scheduler):
+	
+	def __init__(Scheduler):
+		pass
+
 if __name__ == "__main__":
 	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
 	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	#sch = Scheduler_DNSSEC_resolver("DNSSEC_resolver")
-	sch = Scheduler_MTU("IPv6_MTU",6,1500)
-	#sch = Scheduler_MTU("IPv6_MTU",1280)
+	sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
+	#sch = Scheduler_MTU_DNS("IPv6_MTU",6,1280)
 	#sch = Scheduler_MTU("IPv6_MTU",512)
-	#sch = Scheduler_MTU("IPv4_MTU",1500)
+	#sch = Scheduler_MTU_DNS("IPv4_MTU",4,1500)
 	#sch = Scheduler_MTU("IPv4_MTU",1280)
 	#sch = Scheduler_MTU("IPv4_MTU",512)
 	#sch = Scheduler_Probes_resolver("Probes_resolver")
 	sch.run()
 	## List of network propeties
-	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","IPv4_ping_Capable"]
+	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable"]
 	#for propety in network_propeties:
 		#if propety == "Ipv6_dns_Capable":
 			#sch = Scheduler_IPv6_dns_Capable(propety)
