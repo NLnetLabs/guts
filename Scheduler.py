@@ -20,13 +20,14 @@ class Scheduler:
 		for i in xrange(0, len(lis), chunk_size):
 			yield lis[i:i+chunk_size]
 
-	def probes(self, ipv4 = None, ipv6 = None):
-		if (ipv4 == None and ipv6 == None):
-			ipv6 = 1 ## Default to ipv6, most interesing and least number of probes. Everyone wins.
+	def probes(self, ipv):
 		p = set([])
-		if ipv4:
+		if ipv == 4:
 			p.update(set([probe['id'] for probe in atlas.probe(prefix_v4 = '0.0.0.0/0', limit = 0) if probe['status'] == 1]))
-		if ipv6:
+		elif ipv == 6:
+			p.update(set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1]))
+		else:
+			print("Cannot determine the ip version, defaulting to ipv6")
 			p.update(set([probe['id'] for probe in atlas.probe(prefix_v6 = '::/0', limit = 0) if probe['status'] == 1]))
 		return p
 
@@ -75,10 +76,11 @@ class Scheduler:
 
 	## These are probes that have been targeted and have a certain number of results.(For the most part they co-operated.)
 	## This does not mean these probes have good or bad results.
-	def done_probes(self):
+	def done_probes(self,appear=None):
+		if not appearance:
+			appearance = 5 ## Default to 5
 		cursor = Database.get_con().cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
-		appearance = 5 ## The number of times a probe should appear in results for the last week
 		q = """ SELECT Results.probe_id FROM Results, Measurements
 				WHERE Measurements.submitted > {week}
 				AND Measurements.measurement_id = Results.measurement_id
@@ -160,7 +162,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes()## defaults to ipv6. See probes.
+		p  = self.probes(6)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -241,7 +243,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes()## defaults to ipv6. See probes.
+		p  = self.probes(6)## ipv
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -360,7 +362,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes()## defaults to ipv6. See probes.
+		p  = self.probes(6)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -470,6 +472,25 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		self.mtu_size = size
 		Scheduler.__init__(self)
 
+	def done_probes(self):
+		cursor = Database.get_con().cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		appearance = 1 ## One result should be enough to determine the MTU of a certain probe.
+		q = """ SELECT Results.probe_id FROM Results, Measurements
+				WHERE Measurements.submitted > {week}
+				AND Measurements.measurement_id = Results.measurement_id
+				AND Measurements.network_propety = '{prop}'
+				GROUP BY Results.probe_id
+				HAVING COUNT(*) > {appr}
+			""".format(week = int(time_period), prop = self.get_propety_name(), appr = appearance)
+		rows = cursor.execute(q).fetchall()
+
+		if rows:
+			done_probes = set([probe[0] for probe in rows])
+		else:
+			done_probes = set([])
+		return done_probes
+
 	def get_mtu_size(self):
 		return self.mtu_size
 
@@ -486,9 +507,9 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		cursor = con.cursor()
 		if   mtu == 1500:
 			if ipv == 4:
-				p  = self.probes(1)## ipv4 See probes.
+				p  = self.probes(4)## ipv4 See probes.
 			elif ipv == 6:
-				p  = self.probes()## defaults to ipv6. See probes.
+				p  = self.probes(6)## defaults to ipv6. See probes.
 			else:
 				print ("Cannot continue, reason: IP version is unknown.")
 				return
@@ -508,7 +529,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes()
+		p -= self.done_probes(1)##Once hould be enough to determine the MTU.
 
 		if ipv == 4:
 			defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
@@ -600,7 +621,7 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 		p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes()
+		p -= self.done_probes(1)##Once should be enough to determine the MTU.
 
 		probes = list(p)
 		defs = ping6(target=anchor['ip_v6'],size=size)
