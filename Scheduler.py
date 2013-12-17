@@ -499,7 +499,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		else:
 			print("Cannot continue, reason: The chosen MTU size is not supported.")
 			return
-#
+
 		if not p:
 			return
 
@@ -597,12 +597,7 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 		size = self.get_size()
 
 		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target random anchors
-
-		if size == 1500:
-			p = self.probes()
-		else:
-			p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()		
-
+		p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
@@ -628,6 +623,42 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 			except Exception as e:
 				print ("There was an error submitting that query, reason: {}".format(e))
+		con.close()
+
+	def process(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		q = """ SELECT measurement_id FROM Measurements
+				WHERE submitted > {week}
+				AND network_propety = '{prop}'
+				AND finished = 0
+			""".format(week = int(time_period), prop = self.get_propety_name())
+		rows = cursor.execute(q).fetchall()
+
+		if not rows:
+			print("There are no measurements to process")
+			return
+
+		measurements = set([measurement[0] for measurement in rows])
+		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
+		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
+		for measurement in measurements:
+			try:
+				response = [x for y in atlas.result(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
+				for result in response:
+					probe_id = result['prb_id']
+					good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
+					cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
+				cursor.execute(q)
+				print("Results for measurement: {} processed".format(measurement))
+				con.commit()
+			except Exception as e:
+				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				pass
 		con.close()
 
 class Scheduler_MTU_Trace(Scheduler):
