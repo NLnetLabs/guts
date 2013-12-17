@@ -76,7 +76,7 @@ class Scheduler:
 
 	## These are probes that have been targeted and have a certain number of results.(For the most part they co-operated.)
 	## This does not mean these probes have good or bad results.
-	def done_probes(self,appear=None):
+	def done_probes(self,appearance=None):
 		if not appearance:
 			appearance = 5 ## Default to 5
 		cursor = Database.get_con().cursor()
