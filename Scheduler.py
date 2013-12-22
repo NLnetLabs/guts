@@ -86,7 +86,7 @@ class Scheduler:
 				AND Measurements.measurement_id = Results.measurement_id
 				AND Measurements.network_propety = '{prop}'
 				GROUP BY Results.probe_id
-				HAVING COUNT(*) > {appr}
+				HAVING COUNT(Results.good) > {appr}
 			""".format(week = int(time_period), prop = self.get_propety_name(), appr = appearance)
 		rows = cursor.execute(q).fetchall()
 
@@ -107,23 +107,9 @@ class Scheduler:
 			WHERE Measurements.submitted > {week}
 			AND Measurements.measurement_id = Results.measurement_id
 			AND Measurements.network_propety = '{prop}'
-			AND (SELECT COUNT(Results.good) from Results,Measurements,Targeted
-				WHERE Measurements.submitted > {week}
-				AND Measurements.measurement_id = Results.measurement_id
-				AND Measurements.network_propety = '{prop}'
-				AND Results.good = 0
-				GROUP BY Targeted.probe_id)
-				=
-				(SELECT COUNT(Results.good) from Results,Measurements,Targeted
-				WHERE Measurements.submitted > {week}
-				AND Measurements.measurement_id = Results.measurement_id
-				AND Measurements.network_propety = '{prop}'
-				GROUP BY Targeted.probe_id)
-			AND	(SELECT COUNT(Results.good) from Results,Measurements,Targeted
-				WHERE Measurements.submitted > {week}
-				AND Measurements.measurement_id = Results.measurement_id
-				AND Measurements.network_propety = '{prop}'
-				GROUP BY Targeted.probe_id) > {appr}
+			GROUP BY Targeted.probe_id
+			HAVING COUNT(Results.good) > {appr}
+			AND SUM(Results.good) = 0
 			""".format(week = int(time_period), prop = self.get_propety_name(),appr = appearance)
 		rows = cursor.execute(q).fetchall()
 
@@ -185,11 +171,11 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 							print("Error inserting probe: {}, reason: {}.".format(probe,e))
 				except Exception as e:
 					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
-			con.commit()
-		except urllib2.HTTPError as e:
-			print ("There was an error submitting that query, reason: {}".format(e))
-		except Exception as e:
-			print ("There was an error submitting that query, reason: {}".format(e))
+				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+			except Exception as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -267,11 +253,11 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 							print("Error inserting probe: {}, reason: {}.".format(probe,e))
 				except Exception as e:
 					print ("Error inserting measurement: {}, reason: {}".format(measurement,e))
-			con.commit()
-		except urllib2.HTTPError as e:
-			print ("There was an error submitting that query, reason: {}".format(e))
-		except Exception as e:
-			print ("There was an error submitting that query, reason: {}".format(e))
+				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+			except Exception as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
 	## Get all measurement ids that are less than a week old and are ready to process.
@@ -470,26 +456,11 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		self.propety_name = propety
 		self.ipv = ip
 		self.mtu_size = size
+		self.appearance = 1 ## Number of times a measurement needs to be run for this measurement type.
 		Scheduler.__init__(self)
 
-	def done_probes(self):
-		cursor = Database.get_con().cursor()
-		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
-		appearance = 1 ## One result should be enough to determine the MTU of a certain probe.
-		q = """ SELECT Results.probe_id FROM Results, Measurements
-				WHERE Measurements.submitted > {week}
-				AND Measurements.measurement_id = Results.measurement_id
-				AND Measurements.network_propety = '{prop}'
-				GROUP BY Results.probe_id
-				HAVING COUNT(*) > {appr}
-			""".format(week = int(time_period), prop = self.get_propety_name(), appr = appearance)
-		rows = cursor.execute(q).fetchall()
-
-		if rows:
-			done_probes = set([probe[0] for probe in rows])
-		else:
-			done_probes = set([])
-		return done_probes
+	def get_appearance(self):
+		return self.appearance
 
 	def get_mtu_size(self):
 		return self.mtu_size
@@ -607,6 +578,7 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 	def __init__(self,propety,size):
 		self.propety_name = propety
 		self.mtu_size = size
+		self.appearance = 1 ## Number of times a measurement needs to be run for this measurement type.
 		Scheduler.__init__(self)
 
 	def get_size(self):
@@ -617,11 +589,14 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 		cursor = con.cursor()
 		size = self.get_size()
 
+	def get_appearance(self):
+		return self.appearance
+
 		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target random anchors
 		p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes(1)##Once should be enough to determine the MTU.
+		p -= self.done_probes(self.appearance)##Once should be enough to determine the MTU.
 
 		probes = list(p)
 		defs = ping6(target=anchor['ip_v6'],size=size)
@@ -698,7 +673,14 @@ if __name__ == "__main__":
 	#sch = Scheduler_MTU("IPv4_MTU",1280)
 	#sch = Scheduler_MTU("IPv4_MTU",512)
 	#sch = Scheduler_Probes_resolver("Probes_resolver")
-	sch.run()
+	#sch.run()
+	try:
+		if sch.get_appearance():
+			print "yes"
+	except AttributeError as e:
+		print ("Attribute Error: reason: {}".format(e))
+	except Exception as e:
+		print ("Cannot continue, reason: {}".format(e))
 	## List of network propeties
 	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable"]
 	#for propety in network_propeties:
