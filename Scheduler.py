@@ -134,6 +134,7 @@ class Scheduler:
 		return stat
 
 	def run(self):
+		print ("{}, Here I am.".format(self.get_propety_name()))
 		self.measure()
 		#self.process()
 		#self.print_status()
@@ -148,12 +149,14 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
+
 		p  = self.probes(6)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
-		defs = dns6('ripe67.nlnetlabs.nl','AAAA')
 		probes = list(p)
+
+		defs = dns6('ripe67.nlnetlabs.nl','AAAA')
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
 				measurement = atlas.create(defs,chunk)['measurements'][0]
@@ -229,12 +232,15 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		p  = self.probes(6)## ipv
+		
+		p  = self.probes(6)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
-		defs = ping6('2001:7b8:40:1:d0e1::1')
-		probes = list(p) ## Convert to list to be used in atlas
+		probes = list(p)
+		
+		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
+		defs = ping6(target=anchor['ip_v4'])
 		## Need to handle chunks here.
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
@@ -277,7 +283,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
+		## Determine (below) which measurement from the list of measurements has stopped and is ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -348,11 +354,13 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
+
 		p  = self.probes(6)
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
 		p -= self.done_probes()
 		probes = list(p)
+
 		batches = 2
 		defs = dns6("bogus.nlnetlabs.nl","TXT")
 		for batch in range(batches):
@@ -469,18 +477,18 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		return self.ipv
 
 	def measure(self):
+		con = Database.get_con()
+		cursor = con.cursor()
 		## Start with 1500 mtu, see if they are able to do it.
 		## Then use those which attempted but failed this measurement.
 		## Repeat until 512.
 		mtu = self.get_mtu_size()
 		ipv = self.get_ipv()
-		con = Database.get_con()
-		cursor = con.cursor()
-		if   mtu == 1500:
+		if mtu == 1500:
 			if ipv == 4:
-				p  = self.probes(4)## ipv4 See probes.
+				p  = self.probes(4)## ipv4
 			elif ipv == 6:
-				p  = self.probes(6)## defaults to ipv6. See probes.
+				p  = self.probes(6)## ipv6
 			else:
 				print ("Cannot continue, reason: IP version is unknown.")
 				return
@@ -549,7 +557,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
+		## Determine (below) which measurement from the list of measurements has stopped and is ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -573,33 +581,56 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 				pass
 		con.close()
 
-class Scheduler_MTU_Ping_IPv6(Scheduler):
+class Scheduler_MTU_Ping(Scheduler):
 
-	def __init__(self,propety,size):
+	def __init__(self,propety,ip,size):
 		self.propety_name = propety
+		self.ipv = ip
 		self.mtu_size = size
-		self.appearance = 1 ## Number of times a measurement needs to be run for this measurement type.
+		self.appearance = 1 ## Number of times a result needs to appear for this propety.
 		Scheduler.__init__(self)
 
 	def get_size(self):
 		return self.mtu_size
+
+	def get_appearance(self):
+		return self.appearance
 
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
 		size = self.get_size()
 
-	def get_appearance(self):
-		return self.appearance
+		if mtu == 1500:
+			if ipv == 4:
+				p  = self.probes(4)## ipv4
+			elif ipv == 6:
+				p  = self.probes(6)## ipv6
+			else:
+				print ("Cannot continue, reason: IP version is unknown.")
+				return
+		elif mtu == 1280:
+			p = Scheduler_MTU_DNS("IPv{}_MTU_Ping_{}".format(ipv,1500),ipv,1500).incapable_probes()
+		elif mtu == 512:
+			p = Scheduler_MTU_DNS("IPv{}_MTU_Ping_{}".format(ipv,1280),ipv,1280).incapable_probes()
+		else:
+			print("Cannot continue, reason: The chosen MTU size is not supported.")
+			return
 
-		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target random anchors
-		p = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()
+		if not p:
+			return
+
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes(self.appearance)##Once should be enough to determine the MTU.
-
+		p -= self.done_probes(self.appearance) ## Each is tested only once a week since this is an expensive test.
 		probes = list(p)
-		defs = ping6(target=anchor['ip_v6'],size=size)
+
+		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
+		if ip == 4:
+			defs = ping6(target=anchor['ip_v4'],size=size)
+		else:
+			defs = ping6(target=anchor['ip_v6'],size=size)
+
 		for chunk in self.chunker(probes,500):
 			try:
 				measurement = atlas.create(defs,chunk)['measurements'][0]
@@ -637,7 +668,7 @@ class Scheduler_MTU_Ping_IPv6(Scheduler):
 			return
 
 		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements have stopped and are ready for processing.
+		## Determine (below) which measurement from the list of measurements has stopped and is ready for processing.
 		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
 		for measurement in measurements:
 			try:
@@ -666,7 +697,7 @@ if __name__ == "__main__":
 	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
 	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
 	#sch = Scheduler_DNSSEC_resolver("DNSSEC_resolver")
-	sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
+	#sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
 	#sch = Scheduler_MTU_DNS("IPv6_MTU",6,1280)
 	#sch = Scheduler_MTU("IPv6_MTU",512)
 	#sch = Scheduler_MTU_DNS("IPv4_MTU",4,1500)
@@ -674,28 +705,48 @@ if __name__ == "__main__":
 	#sch = Scheduler_MTU("IPv4_MTU",512)
 	#sch = Scheduler_Probes_resolver("Probes_resolver")
 	#sch.run()
-	try:
-		if sch.get_appearance():
-			print "yes"
-	except AttributeError as e:
-		print ("Attribute Error: reason: {}".format(e))
-	except Exception as e:
-		print ("Cannot continue, reason: {}".format(e))
+	#try:
+		#if sch.get_appearance():
+			#print "yes"
+	#except AttributeError as e:
+		#print ("Attribute Error: reason: {}".format(e))
+	#except Exception as e:
+		#print ("Cannot continue, reason: {}".format(e))
 	## List of network propeties
-	#network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable"]
-	#for propety in network_propeties:
-		#if propety == "Ipv6_dns_Capable":
-			#sch = Scheduler_IPv6_dns_Capable(propety)
-		#elif propety == "IPv6_ping_Capable":
-			#sch = Scheduler_IPv6_ping_Capable(propety)
-		#elif propety == "IPv4_ping_Capable":
-			#sch = Scheduler_IPv4_ping_Capable(propety)
-		#else:
-			#sch = None
-		#if sch:
-			#try:
-				#sch.run()
-			#except Exception as e:
-				#print ("There was and error running propety: {}, reason: {}".format(propety,e))
-				#pass
+	network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","DNSSEC_resolver","IPv6_MTU_DNS_1500","IPv6_MTU_DNS_1280","IPv6_MTU_DNS_512"]
+	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512"])
+	#print (len(network_propeties))
+	for propety in network_propeties:
+		if propety == "IPv6_dns_Capable":
+			sch = Scheduler_IPv6_dns_Capable(propety)
+		elif propety == "IPv6_ping_Capable":
+			sch = Scheduler_IPv6_ping_Capable(propety)
+		elif propety == "DNSSEC_resolver":
+			sch = Scheduler_DNSSEC_resolver(propety)
+		elif propety == "IPv6_MTU_DNS_1500":
+			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
+		elif propety == "IPv6_MTU_DNS_1280":
+			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1280)
+		elif propety == "IPv6_MTU_DNS_512":
+			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,512)
+		elif propety == "IPv6_MTU_ping_1500":
+			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,1500)
+		elif propety == "IPv6_MTU_ping_1280":
+			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,1280)
+		elif propety == "IPv6_MTU_ping_512":
+			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,512)
+		elif propety == "IPv4_MTU_ping_1500":
+			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,1500)
+		elif propety == "IPv4_MTU_ping_1280":
+			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,1280)
+		elif propety == "IPv4_MTU_ping_512":
+			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,512)
+		else:
+			sch = None
+		if sch:
+			try:
+				sch.run()
+			except Exception as e:
+				print ("There was and error running propety: {}, reason: {}".format(propety,e))
+				pass
 	#print("fin.")
