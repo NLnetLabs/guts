@@ -428,7 +428,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 
 		## Hoping for symetry.
 		if len(dnssec_rows) != len(nossec_rows):
-			print ("Cannot continue. Reason: No Symetry between dnssec and non dnsec maintained, meaning we cannot cross reference the results.")
+			print ("Cannot continue. Reason: Symetry between dnssec and non dnsec not maintained, meaning we cannot cross reference the results.")
 			return
 
 		dnssec_mes = [row[0] for row in dnssec_rows]
@@ -458,7 +458,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				pass
 		con.close()
 
-class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
+class Scheduler_MTU_DNS(Scheduler):
 
 	def __init__(self,propety,ip,size):
 		self.propety_name = propety
@@ -503,13 +503,12 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		if not p:
 			return
 
-		anchors = AnchorList.AnchorList()## External script to get the anchor info, in use until anchor API.
-		anchor  = anchors[random.randint(0,len(anchors))]## Choose a "random" anchor in the list of anchors.
-
 		p -= self.busy_probes()
 		p -= self.lazy_probes()
-		p -= self.done_probes(1)##Once hould be enough to determine the MTU.
+		p -= self.done_probes(1)
+		probes = list(p)
 
+		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
 		if ipv == 4:
 			defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
 		elif ipv == 6:
@@ -517,7 +516,7 @@ class Scheduler_MTU_DNS(Scheduler): ## Needs testing.
 		else:
 			print("Cannot continue, reason: IP version is not clear.")
 			return
-		probes = list(p)
+
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
 				measurement = atlas.create(defs,chunk)['measurements'][0]
@@ -591,17 +590,21 @@ class Scheduler_MTU_Ping(Scheduler):
 		Scheduler.__init__(self)
 
 	def get_size(self):
-		return self.mtu_size
+		return self.size
 
 	def get_appearance(self):
 		return self.appearance
 
+	def get_ipv(self):
+		return self.ipv
+
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
+		ipv = self.get_ipv()
 		size = self.get_size()
 
-		if mtu == 1500:
+		if size == 1500:
 			if ipv == 4:
 				p  = self.probes(4)## ipv4
 			elif ipv == 6:
@@ -689,29 +692,11 @@ class Scheduler_MTU_Ping(Scheduler):
 		con.close()
 
 class Scheduler_MTU_Trace(Scheduler):
-	
+
 	def __init__(Scheduler):
 		pass
 
 if __name__ == "__main__":
-	#sch = Scheduler_IPv6_dns_Capable("IPv6_dns_Capable")
-	#sch = Scheduler_IPv6_ping_Capable("IPv6_ping_Capable")
-	#sch = Scheduler_DNSSEC_resolver("DNSSEC_resolver")
-	#sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
-	#sch = Scheduler_MTU_DNS("IPv6_MTU",6,1280)
-	#sch = Scheduler_MTU("IPv6_MTU",512)
-	#sch = Scheduler_MTU_DNS("IPv4_MTU",4,1500)
-	#sch = Scheduler_MTU("IPv4_MTU",1280)
-	#sch = Scheduler_MTU("IPv4_MTU",512)
-	#sch = Scheduler_Probes_resolver("Probes_resolver")
-	#sch.run()
-	#try:
-		#if sch.get_appearance():
-			#print "yes"
-	#except AttributeError as e:
-		#print ("Attribute Error: reason: {}".format(e))
-	#except Exception as e:
-		#print ("Cannot continue, reason: {}".format(e))
 	## List of network propeties
 	network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","DNSSEC_resolver","IPv6_MTU_DNS_1500","IPv6_MTU_DNS_1280","IPv6_MTU_DNS_512"]
 	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512"])
@@ -724,23 +709,23 @@ if __name__ == "__main__":
 		elif propety == "DNSSEC_resolver":
 			sch = Scheduler_DNSSEC_resolver(propety)
 		elif propety == "IPv6_MTU_DNS_1500":
-			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1500)
+			sch = Scheduler_MTU_DNS(propety,6,1500)
 		elif propety == "IPv6_MTU_DNS_1280":
-			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,1280)
+			sch = Scheduler_MTU_DNS(propety,6,1280)
 		elif propety == "IPv6_MTU_DNS_512":
-			sch = Scheduler_MTU_DNS("IPv6_MTU_DNS",6,512)
+			sch = Scheduler_MTU_DNS(propety,6,512)
 		elif propety == "IPv6_MTU_ping_1500":
-			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,1500)
+			sch = Scheduler_MTU_Ping(propety,6,1500)
 		elif propety == "IPv6_MTU_ping_1280":
-			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,1280)
+			sch = Scheduler_MTU_Ping(propety,6,1280)
 		elif propety == "IPv6_MTU_ping_512":
-			sch = Scheduler_MTU_Ping("IPv6_MTU_ping",6,512)
+			sch = Scheduler_MTU_Ping(propety,6,512)
 		elif propety == "IPv4_MTU_ping_1500":
-			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,1500)
+			sch = Scheduler_MTU_Ping(propety,4,1500)
 		elif propety == "IPv4_MTU_ping_1280":
-			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,1280)
+			sch = Scheduler_MTU_Ping(propety,4,1280)
 		elif propety == "IPv4_MTU_ping_512":
-			sch = Scheduler_MTU_Ping("IPv4_MTU_ping",4,512)
+			sch = Scheduler_MTU_Ping(propety,4,512)
 		else:
 			sch = None
 		if sch:
