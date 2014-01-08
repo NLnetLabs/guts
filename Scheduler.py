@@ -487,8 +487,6 @@ class Scheduler_MTU(Scheduler):
 		size = self.get_size()
 		mes_type = self.get_mes_type()
 
-		print ("propety: {}, mes_type: {}, ipv: {}, size: {}".format(self.get_propety_name(),mes_type,ipv,size))
-
 		if size == 1500:
 			p = self.probes(ipv)
 		elif size == 1280:
@@ -584,11 +582,91 @@ class Scheduler_MTU(Scheduler):
 				pass
 		con.close()
 
+class Scheduler_frag(Scheduler):
+
+	def __init__(self,propety):
+		self.propety_name = propety
+		Scheduler.__init__(self)
+
+	def measure(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		## Target probes that are dns capable
+		p =  Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").done_probes()
+		p -= Scheduler_IPv6_dns_Capable("IPv6_dns_Capable").incapable_probes()
+
+		if not p:
+			print("No probes qualify for this measurement.")
+			return
+
+		defs = dns6("1frag","AAAA","2001:7b8:40:1:d0e1::2")
+
+		for chunk in self.chunker(probes,500):
+			try: ## If creating the measurement fails then nothing more must be done for this chunk.
+				measurement = atlas.create(defs,chunk)['measurements'][0]
+				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
+						VALUES({msm},"{prop}",{now},0)
+					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
+				cursor.execute(q)
+				print ("measurement: {} successfully inserted.".format(measurement))
+				for probe in chunk:
+					pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
+					try:
+						cursor.execute(pq)
+					except Exception as e:
+						print("Error inserting probe: {}, reason: {}.".format(probe,e))
+				con.commit()
+			except urllib2.HTTPError as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+			except Exception as e:
+				print ("There was an error submitting that query, reason: {}".format(e))
+		con.close()
+
+	def process(self):
+		con = Database.get_con()
+		cursor = con.cursor()
+		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		mes_type = self.mes_type()
+		q = """ SELECT measurement_id FROM Measurements
+				WHERE submitted > {week}
+				AND network_propety = '{prop}'
+				AND finished = 0
+			""".format(week = int(time_period), prop = self.get_propety_name())
+		rows = cursor.execute(q).fetchall()
+
+		if not rows:
+			print("There are no measurements to process")
+			return
+
+		measurements = set([measurement[0] for measurement in rows])
+		## Determine (below) which measurement from the list of measurements has stopped and is ready for processing.
+		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
+		for measurement in measurements:
+			try:
+				response = [x for y in atlas.result(measurement) for x in y]
+				measurement_header = list(atlas.measurement(measurement))[0]
+				for result in response:
+					probe_id = result['prb_id']
+					good = 0 if result.get('error',None) else 1
+					## When checking the answer from DNS we exclude those that do not have an answer.
+					if good:
+						## Since the query has returned a result we will now check that result.
+						good = 0 if (result['result']['ANCOUNT'] == 0) else 1
+					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
+					cursor.execute(q)
+				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
+				cursor.execute(q)
+				print("Results for measurement: {} processed".format(measurement))
+				con.commit()
+			except Exception as e:
+				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
+				pass
+		con.close()
+
 if __name__ == "__main__":
 	## List of network propeties
 	network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","DNSSEC_resolver","IPv6_MTU_DNS_1500","IPv6_MTU_DNS_1280","IPv6_MTU_DNS_512"]
 	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv4_MTU_ping_1280","IPv4_MTU_ping_512"])
-	#print (len(network_propeties))
 	for propety in network_propeties:
 		if propety == "IPv6_dns_Capable":
 			sch = Scheduler_IPv6_dns_Capable(propety)
