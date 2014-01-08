@@ -458,47 +458,43 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 				pass
 		con.close()
 
-class Scheduler_MTU_DNS(Scheduler):
+class Scheduler_MTU(Scheduler):
 
-	def __init__(self,propety,ip,size):
+	def __init__(self,propety,mes_type,ip,size):
 		self.propety_name = propety
+		self.mes_type = mes_type
 		self.ipv = ip
-		self.mtu_size = size
-		self.appearance = 1 ## Number of times a measurement needs to be run for this measurement type.
+		self.size = size
+		self.appearance = 1 ## Number of times a result needs to appear for this propety.
 		Scheduler.__init__(self)
+
+	def get_size(self):
+		return self.size
 
 	def get_appearance(self):
 		return self.appearance
 
-	def get_mtu_size(self):
-		return self.mtu_size
-
 	def get_ipv(self):
 		return self.ipv
+
+	def get_mes_type(self):
+		return self.mes_type
 
 	def measure(self):
 		con = Database.get_con()
 		cursor = con.cursor()
-		## Start with 1500 mtu, see if they are able to do it.
-		## Then use those which attempted but failed this measurement.
-		## Repeat until 512.
-		mtu = self.get_mtu_size()
 		ipv = self.get_ipv()
-		if mtu == 1500:
-			if ipv == 4:
-				p  = self.probes(4)## ipv4
-			elif ipv == 6:
-				p  = self.probes(6)## ipv6
-			else:
-				print ("Cannot continue, reason: IP version is unknown.")
-				return
-		elif mtu == 1280:
-			p = Scheduler_MTU_DNS("IPv{}_MTU_DNS_{}".format(ipv,1500),ipv,1500).incapable_probes()
-		elif mtu == 512:
-			p = Scheduler_MTU_DNS("IPv{}_MTU_DNS_{}".format(ipv,1280),ipv,1280).incapable_probes()
+		size = self.get_size()
+		mes_type = self.get_mes_type()
+
+		print ("propety: {}, mes_type: {}, ipv: {}, size: {}".format(self.get_propety_name(),mes_type,ipv,size))
+
+		if size == 1500:
+			p = self.probes(ipv)
+		elif size == 1280:
+			p = Scheduler_MTU("IPv{}_MTU_{}_{}".format(ipv,mes_type,1500),ipv,mes_type,1500).incapable_probes()
 		else:
-			print("Cannot continue, reason: The chosen MTU size is not supported.")
-			return
+			p = Scheduler_MTU("IPv{}_MTU_{}_{}".format(ipv,mes_type,1280),ipv,mes_type,1280).incapable_probes()
 
 		if not p:
 			return
@@ -510,9 +506,15 @@ class Scheduler_MTU_DNS(Scheduler):
 
 		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
 		if ipv == 4:
-			defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
+			if mes_type == "DNS":
+				defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
+			else:
+				defs = ping(target=anchor['ip_v4'],size=size)
 		elif ipv == 6:
-			defs = dns6("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v6'],udp_payload_size=mtu)
+			if mes_type == "DNS":
+				defs = dns6("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v6'],udp_payload_size=mtu)
+			else:
+				defs = ping6(target=anchor['ip_v6'],size=size)
 		else:
 			print("Cannot continue, reason: IP version is not clear.")
 			return
@@ -538,127 +540,11 @@ class Scheduler_MTU_DNS(Scheduler):
 				print ("There was an error submitting that query, reason: {}".format(e))
 		con.close()
 
-	## Get all measurement ids that are less than a week old and are ready to process.	
 	def process(self):
 		con = Database.get_con()
 		cursor = con.cursor()
 		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
-		q = """
-			SELECT measurement_id from Measurements
-			WHERE finished = 0
-			AND network_propety = '{prop}'
-			AND submitted > {time_period}
-			""".format(prop = self.get_propety_name(),time_period = int(time_period))
-		rows = cursor.execute(q).fetchall()
-
-		if not rows:
-			print("There are no measurements to process")
-			return
-
-		measurements = set([measurement[0] for measurement in rows])
-		## Determine (below) which measurement from the list of measurements has stopped and is ready for processing.
-		measurements = [x for y in [[measurement['msm_id'] for measurement in atlas.measurement(measurement) if measurement['status']['name'] == 'Stopped'] for measurement in measurements] for x in y]
-		for measurement in measurements:
-			try:
-				response = [x for y in atlas.result(measurement) for x in y]
-				measurement_header = list(atlas.measurement(measurement))[0]
-				for result in response:
-					## This only works for DNS.
-					good = 0 if result.get('error',None) else 1
-					## When checking the answer from DNS we exclude those that do not have an answer.
-					if good:
-						## Since the query has returned a result we will now check that result.
-						good = 0 if (result['result']['ANCOUNT'] == 0) else 1
-					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,result['prb_id'],good,json.dumps(result))
-					cursor.execute(q)
-				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
-				cursor.execute(q)
-				print("Results for measurement: {} processed".format(measurement))
-				con.commit()
-			except Exception as e:
-				print("There was an error processing measurement: {}, reason: {}".format(measurement,e))
-				pass
-		con.close()
-
-class Scheduler_MTU_Ping(Scheduler):
-
-	def __init__(self,propety,ip,size):
-		self.propety_name = propety
-		self.ipv = ip
-		self.mtu_size = size
-		self.appearance = 1 ## Number of times a result needs to appear for this propety.
-		Scheduler.__init__(self)
-
-	def get_size(self):
-		return self.size
-
-	def get_appearance(self):
-		return self.appearance
-
-	def get_ipv(self):
-		return self.ipv
-
-	def measure(self):
-		con = Database.get_con()
-		cursor = con.cursor()
-		ipv = self.get_ipv()
-		size = self.get_size()
-
-		if size == 1500:
-			if ipv == 4:
-				p  = self.probes(4)## ipv4
-			elif ipv == 6:
-				p  = self.probes(6)## ipv6
-			else:
-				print ("Cannot continue, reason: IP version is unknown.")
-				return
-		elif mtu == 1280:
-			p = Scheduler_MTU_DNS("IPv{}_MTU_Ping_{}".format(ipv,1500),ipv,1500).incapable_probes()
-		elif mtu == 512:
-			p = Scheduler_MTU_DNS("IPv{}_MTU_Ping_{}".format(ipv,1280),ipv,1280).incapable_probes()
-		else:
-			print("Cannot continue, reason: The chosen MTU size is not supported.")
-			return
-
-		if not p:
-			return
-
-		p -= self.busy_probes()
-		p -= self.lazy_probes()
-		p -= self.done_probes(self.appearance) ## Each is tested only once a week since this is an expensive test.
-		probes = list(p)
-
-		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
-		if ip == 4:
-			defs = ping6(target=anchor['ip_v4'],size=size)
-		else:
-			defs = ping6(target=anchor['ip_v6'],size=size)
-
-		for chunk in self.chunker(probes,500):
-			try:
-				measurement = atlas.create(defs,chunk)['measurements'][0]
-				q = """ INSERT INTO Measurements(measurement_id,network_propety,submitted,finished)
-						VALUES({msm},"{prop}",{now},0)
-					""".format(msm = measurement,prop = self.get_propety_name(), now = int(time()))
-				cursor.execute(q)
-				print ("measurement: {} successfully inserted.".format(measurement))
-				for probe in chunk:
-					pq = "INSERT INTO Targeted(measurement_id,probe_id) VALUES({},{})".format(measurement,probe)
-					try:
-						cursor.execute(pq)
-					except Exception as e:
-						print("Error inserting probe: {}, reason: {}.".format(probe,e))
-				con.commit()
-			except urllib2.HTTPError as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
-			except Exception as e:
-				print ("There was an error submitting that query, reason: {}".format(e))
-		con.close()
-
-	def process(self):
-		con = Database.get_con()
-		cursor = con.cursor()
-		time_period = (time() - 7 * 24 * 60 * 60) ## 1 week ago
+		mes_type = self.mes_type()
 		q = """ SELECT measurement_id FROM Measurements
 				WHERE submitted > {week}
 				AND network_propety = '{prop}'
@@ -679,7 +565,14 @@ class Scheduler_MTU_Ping(Scheduler):
 				measurement_header = list(atlas.measurement(measurement))[0]
 				for result in response:
 					probe_id = result['prb_id']
-					good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
+					if mes_type == "DNS":
+						good = 0 if result.get('error',None) else 1
+						## When checking the answer from DNS we exclude those that do not have an answer.
+						if good:
+							## Since the query has returned a result we will now check that result.
+							good = 0 if (result['result']['ANCOUNT'] == 0) else 1
+					else:
+						good = 0 if ('error' in (results for results in result['result']) or (result['avg'] == -1)) else 1
 					q = "insert into Results(measurement_id,probe_id,good,json) values({},{},{},'{}')".format(measurement,probe_id,good,json.dumps(result))
 					cursor.execute(q)
 				q = "UPDATE Measurements SET finished = 1,json='{}' WHERE measurement_id = {}".format(json.dumps(measurement_header),measurement)
@@ -691,15 +584,10 @@ class Scheduler_MTU_Ping(Scheduler):
 				pass
 		con.close()
 
-class Scheduler_MTU_Trace(Scheduler):
-
-	def __init__(Scheduler):
-		pass
-
 if __name__ == "__main__":
 	## List of network propeties
 	network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","DNSSEC_resolver","IPv6_MTU_DNS_1500","IPv6_MTU_DNS_1280","IPv6_MTU_DNS_512"]
-	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512"])
+	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv4_MTU_ping_1280","IPv4_MTU_ping_512"])
 	#print (len(network_propeties))
 	for propety in network_propeties:
 		if propety == "IPv6_dns_Capable":
@@ -708,24 +596,8 @@ if __name__ == "__main__":
 			sch = Scheduler_IPv6_ping_Capable(propety)
 		elif propety == "DNSSEC_resolver":
 			sch = Scheduler_DNSSEC_resolver(propety)
-		elif propety == "IPv6_MTU_DNS_1500":
-			sch = Scheduler_MTU_DNS(propety,6,1500)
-		elif propety == "IPv6_MTU_DNS_1280":
-			sch = Scheduler_MTU_DNS(propety,6,1280)
-		elif propety == "IPv6_MTU_DNS_512":
-			sch = Scheduler_MTU_DNS(propety,6,512)
-		elif propety == "IPv6_MTU_ping_1500":
-			sch = Scheduler_MTU_Ping(propety,6,1500)
-		elif propety == "IPv6_MTU_ping_1280":
-			sch = Scheduler_MTU_Ping(propety,6,1280)
-		elif propety == "IPv6_MTU_ping_512":
-			sch = Scheduler_MTU_Ping(propety,6,512)
-		elif propety == "IPv4_MTU_ping_1500":
-			sch = Scheduler_MTU_Ping(propety,4,1500)
-		elif propety == "IPv4_MTU_ping_1280":
-			sch = Scheduler_MTU_Ping(propety,4,1280)
-		elif propety == "IPv4_MTU_ping_512":
-			sch = Scheduler_MTU_Ping(propety,4,512)
+		elif "MTU" in propety:
+			sch = Scheduler_MTU(propety,propety.split('_')[2],propety[3:4],propety.split('_')[3])
 		else:
 			sch = None
 		if sch:
