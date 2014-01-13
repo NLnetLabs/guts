@@ -156,7 +156,7 @@ class Scheduler_IPv6_dns_Capable(Scheduler):
 		p -= self.done_probes()
 		probes = list(p)
 
-		defs = dns6('ripe67.nlnetlabs.nl','AAAA')
+		defs = dns6('ripe67.nlnetlabs.nl','AAAA',description = self.get_propety_name())
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
 				measurement = atlas.create(defs,chunk)['measurements'][0]
@@ -240,7 +240,7 @@ class Scheduler_IPv6_ping_Capable(Scheduler):
 		probes = list(p)
 		
 		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
-		defs = ping6(target=anchor['ip_v4'])
+		defs = ping6(target=anchor['ip_v6'],description = self.get_propety_name())
 		## Need to handle chunks here.
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
@@ -362,7 +362,7 @@ class Scheduler_DNSSEC_resolver(Scheduler):
 		probes = list(p)
 
 		batches = 2
-		defs = dns6("bogus.nlnetlabs.nl","TXT")
+		defs = dns6("bogus.nlnetlabs.nl","TXT",description = self.get_propety_name())
 		for batch in range(batches):
 			if batch == 0:
 				defs.update(do=True)
@@ -505,12 +505,12 @@ class Scheduler_MTU(Scheduler):
 		anchor = AnchorList.AnchorList()[random.randint(0,len(anchors))] ## We will target a random anchor
 		if ipv == 4:
 			if mes_type == "DNS":
-				defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu)
+				defs = dns("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v4'],udp_payload_size=mtu,description = self.get_propety_name())
 			else:
 				defs = ping(target=anchor['ip_v4'],size=size)
 		elif ipv == 6:
 			if mes_type == "DNS":
-				defs = dns6("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v6'],udp_payload_size=mtu)
+				defs = dns6("{}.{}.dns.{}.anchors.atlas.ripe.net".format(mtu,ipv,anchor['hostname']),"TXT",target=anchor['ip_v6'],udp_payload_size=mtu,description = self.get_propety_name())
 			else:
 				defs = ping6(target=anchor['ip_v6'],size=size)
 		else:
@@ -599,7 +599,7 @@ class Scheduler_frag(Scheduler):
 			print("No probes qualify for this measurement.")
 			return
 
-		defs = dns6("1frag","AAAA","2001:7b8:40:1:d0e1::2")
+		defs = dns6("1frag","AAAA","2001:7b8:40:1:d0e1::2",description = self.get_propety_name())
 
 		for chunk in self.chunker(probes,500):
 			try: ## If creating the measurement fails then nothing more must be done for this chunk.
@@ -664,6 +664,8 @@ class Scheduler_frag(Scheduler):
 		con.close()
 
 if __name__ == "__main__":
+	## Check OS
+	## Check global settings file
 	## List of network propeties
 	network_propeties = ["IPv6_dns_Capable","IPv6_ping_Capable","DNSSEC_resolver","IPv6_MTU_DNS_1500","IPv6_MTU_DNS_1280","IPv6_MTU_DNS_512"]
 	#network_propeties.extend(["IPv6_MTU_ping_1500","IPv6_MTU_ping_1280","IPv6_MTU_ping_512","IPv4_MTU_ping_1500","IPv4_MTU_ping_1280","IPv4_MTU_ping_512"])
