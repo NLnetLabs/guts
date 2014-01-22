@@ -70,8 +70,13 @@ if __name__ == "__main__":
 			conf.set_DB_location(raw_input())
 		else:
 			conf.DBE = "mysql"
-			conf.set_DB_location("localhost")
+			print ("Please specify the address of the server eg: 'localhost'")
+			server = raw_input()
+			print ("Please specify the user name with which to connect")
+			user = raw_input()
+			print ("Please specify the password for that account")
+			password = raw_input()
+			conf.set_DB_location("{},{},{},Atlas".format(server,user,password))
 	js = [{"os":conf.get_os(),"key_location":conf.get_key_location(),"version":conf.get_version(),"DBE":conf.get_DBE(),"DB_location":conf.get_DB_location()}]
 	with open('config.json','w') as outfile:
 		json.dump(js,outfile)
-	
